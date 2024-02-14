@@ -676,7 +676,8 @@ contains
     allocate( gcbc_q             (0:mxpft) )
     allocate( gcbr_p             (0:mxpft) )
     allocate( gcbr_q             (0:mxpft) )
-
+    allocate( gcpsi              (0:mxpft) )
+    allocate( pftcc              (0:mxpft) )
 
     ! Tidal cycle coefficients
     allocate( tide_coeff_amp (max_tide_coeffs))
@@ -1243,7 +1244,7 @@ contains
     if ( .not. readv ) gcpsi(:) = 0._r8
     call ncd_io('pftcc',pftcc(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) pftcc(:) = 1._r8
-       
+
     call ncd_io('mergetoelmpft', mergetoelmpft(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) then
        do i = 0, mxpft
