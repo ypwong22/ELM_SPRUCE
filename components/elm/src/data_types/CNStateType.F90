@@ -129,6 +129,20 @@ module CNStateType
      real(r8), pointer :: bglfr_leaf_patch             (:)     ! patch background leaf litterfall rate (1/s)
      real(r8), pointer :: bglfr_froot_patch            (:)     ! patch background fine root litterfall rate (1/s)
      real(r8), pointer :: bgtr_patch                   (:)     ! patch background transfer growth rate (1/s)
+
+     real(r8), pointer :: onset_flag_root_patch        (:)     ! patch onset flag for root growth
+     real(r8), pointer :: onset_gddflag_root_patch     (:)     ! patch onset flag for root growing degree days sum
+     real(r8), pointer :: onset_gdd_root_patch         (:)     ! patch onset growing degree days for root growing degree days
+     real(r8), pointer :: onset_counter_root_patch     (:)     ! patch onset days counter for root
+     real(r8), pointer :: offset_flag_root_patch       (:)     ! patch offset flag for root
+     real(r8), pointer :: offset_counter_root_patch    (:)     ! patch offset days counter for root
+     real(r8), pointer :: dormant_flag_root_patch      (:)     ! patch dormancy flag for root
+     real(r8), pointer :: fcur_dyn_patch               (:)     ! fraction of allocation that goes to currently displayed growth, remainder to storage, dynamic
+     real(r8), pointer :: onset_froot_fnmin_patch      (:)     ! nutrient limitation stimulation factor of fine root growth
+     real(r8), pointer :: onset_froot_fw_patch         (:)     ! water table inhibition factor of fine root growth
+     real(r8), pointer :: lfr_froot_td_patch           (:)     ! temperature scalign factor on fine root mortality
+     real(r8), pointer :: lfr_froot_wd_patch           (:)     ! moisture scalign factor on fine root mortality
+
      real(r8), pointer :: alloc_pnow_patch             (:)     ! patch fraction of current allocation to display as new growth (DIM)
      real(r8), pointer :: c_allometry_patch            (:)     ! patch C allocation index (DIM)
      real(r8), pointer :: n_allometry_patch            (:)     ! patch N allocation index (DIM)
@@ -305,6 +319,8 @@ contains
     allocate(this%onset_gddflag_patch         (begp:endp)) ;    this%onset_gddflag_patch         (:) = spval
     allocate(this%onset_fdd_patch             (begp:endp)) ;    this%onset_fdd_patch             (:) = spval
     allocate(this%onset_gdd_patch             (begp:endp)) ;    this%onset_gdd_patch             (:) = spval
+    allocate(this%onset_chil_patch            (begp:endp)) ;    this%onset_chil_patch            (:) = spval
+    allocate(this%dayl_temp                   (begp:endp)) ;    this%dayl_temp                   (:) = spval
     allocate(this%onset_swi_patch             (begp:endp)) ;    this%onset_swi_patch             (:) = spval
     allocate(this%offset_flag_patch           (begp:endp)) ;    this%offset_flag_patch           (:) = spval
     allocate(this%offset_counter_patch        (begp:endp)) ;    this%offset_counter_patch        (:) = spval
@@ -316,6 +332,18 @@ contains
     allocate(this%bglfr_leaf_patch            (begp:endp)) ;    this%bglfr_leaf_patch            (:) = spval
     allocate(this%bglfr_froot_patch           (begp:endp)) ;    this%bglfr_froot_patch           (:) = spval
     allocate(this%bgtr_patch                  (begp:endp)) ;    this%bgtr_patch                  (:) = spval
+    allocate(this%onset_flag_root_patch       (begp:endp)) ;    this%onset_flag_root_patch         (:) = spval
+    allocate(this%onset_gddflag_root_patch    (begp:endp)) ;    this%onset_gddflag_root_patch    (:) = spval
+    allocate(this%onset_gdd_root_patch        (begp:endp)) ;    this%onset_gdd_root_patch         (:) = spval
+    allocate(this%onset_counter_root_patch    (begp:endp)) ;    this%onset_counter_root_patch      (:) = spval
+    allocate(this%offset_flag_root_patch      (begp:endp)) ;    this%offset_flag_root_patch        (:) = spval
+    allocate(this%offset_counter_root_patch   (begp:endp)) ;    this%offset_counter_root_patch     (:) = spval
+    allocate(this%dormant_flag_root_patch     (begp:endp)) ;    this%dormant_flag_root_patch     (:) = spval
+    allocate(this%fcur_dyn_patch              (begp:endp)) ;    this%fcur_dyn_patch               (:) = spval
+    allocate(this%onset_froot_fnmin_patch     (begp:endp)) ;    this%onset_froot_fnmin_patch      (:) = spval
+    allocate(this%onset_froot_fw_patch        (begp:endp)) ;    this%onset_froot_fw_patch         (:) = spval
+    allocate(this%lfr_froot_td_patch          (begp:endp)) ;    this%lfr_froot_td_patch           (:) = spval
+    allocate(this%lfr_froot_wd_patch          (begp:endp)) ;    this%lfr_froot_wd_patch           (:) = spval
     allocate(this%alloc_pnow_patch            (begp:endp)) ;    this%alloc_pnow_patch            (:) = spval
     allocate(this%c_allometry_patch           (begp:endp)) ;    this%c_allometry_patch           (:) = spval
     allocate(this%n_allometry_patch           (begp:endp)) ;    this%n_allometry_patch           (:) = spval
@@ -325,8 +353,6 @@ contains
     allocate(this%annmax_retransn_patch       (begp:endp)) ;    this%annmax_retransn_patch       (:) = spval
     allocate(this%downreg_patch               (begp:endp)) ;    this%downreg_patch               (:) = spval
     allocate(this%rc14_atm_patch              (begp:endp)) ;    this%rc14_atm_patch              (:) = spval    
-    allocate(this%onset_chil_patch            (begp:endp)) ;    this%onset_chil_patch            (:) = spval
-    allocate(this%dayl_temp                   (begp:endp)) ;    this%dayl_temp                   (:) = spval
 
 
     !! add phosphorus -X.YANG
@@ -609,6 +635,66 @@ contains
     call hist_addfld1d (fname='BGTR', units='1/s', &
          avgflag='A', long_name='background transfer growth rate', &
          ptr_patch=this%bgtr_patch, default='inactive')
+
+    this%onset_flag_root_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ONSET_FLAG_ROOT', units='', &
+         avgflag='A', long_name='onset flag for root growth', &
+         ptr_patch=this%onset_flag_root_patch, default='inactive')
+
+    this%onset_gddflag_root_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ONSET_GDDFLAG_ROOT', units='', &
+         avgflag='A', long_name='onset flag for root growing degrees sum', &
+         ptr_patch=this%onset_gddflag_root_patch, default='inactive')
+
+    this%onset_gdd_root_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ONSET_GDD_ROOT', units='', &
+         avgflag='A', long_name='onset root growing degrees sum', &
+         ptr_patch=this%onset_gdd_root_patch, default='inactive')
+
+    this%onset_counter_root_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ONSET_COUNTER_ROOT', units='', &
+         avgflag='A', long_name='onset counter for root growth', &
+         ptr_patch=this%onset_counter_root_patch, default='inactive')
+
+    this%offset_flag_root_patch(begp:endp) = spval
+    call hist_addfld1d (fname='OFFSET_FLAG_ROOT', units='', &
+         avgflag='A', long_name='offset flag for root growth', &
+         ptr_patch=this%offset_flag_root_patch, default='inactive')
+
+    this%offset_counter_root_patch(begp:endp) = spval
+    call hist_addfld1d (fname='OFFSET_COUNTER_ROOT', units='', &
+         avgflag='A', long_name='offset counter for root growth', &
+         ptr_patch=this%offset_counter_root_patch, default='inactive')
+
+    this%dormant_flag_root_patch(begp:endp) = spval
+    call hist_addfld1d (fname='DORMANT_FLAG_ROOT', units='', &
+         avgflag='A', long_name='dormant flag for root growth', &
+         ptr_patch=this%dormant_flag_root_patch, default='inactive')
+
+    this%fcur_dyn_patch(begp:endp) = spval
+    call hist_addfld1d (fname='FCUR_DYN', units='', &
+         avgflag='A', long_name='dynamic allocation factor for root growth', &
+         ptr_patch=this%fcur_dyn_patch, default='inactive')
+
+    this%onset_froot_fnmin_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ONSET_FROOT_FNMIN', units='', &
+         avgflag='A', long_name='nitrogen limitation stimulation factor for root growth', &
+         ptr_patch=this%onset_froot_fnmin_patch, default='inactive')
+
+    this%onset_froot_fw_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ONSET_FROOT_FW', units='', &
+         avgflag='A', long_name='water table inhibition factor for root growth', &
+         ptr_patch=this%onset_froot_fw_patch, default='inactive')
+
+    this%lfr_froot_td_patch(begp:endp) = spval
+    call hist_addfld1d (fname='LFR_FROOT_TD', units='', &
+         avgflag='A', long_name='temperature scalar on root mortality', &
+         ptr_patch=this%lfr_froot_td_patch, default='inactive')
+
+    this%lfr_froot_wd_patch(begp:endp) = spval
+    call hist_addfld1d (fname='LFR_FROOT_WD', units='', &
+         avgflag='A', long_name='water scalar on root mortality', &
+         ptr_patch=this%lfr_froot_wd_patch, default='inactive')
 
     this%alloc_pnow_patch(begp:endp) = spval
     call hist_addfld1d (fname='ALLOC_PNOW', units='proportion', &
@@ -1084,6 +1170,18 @@ contains
           this%bglfr_leaf_patch(p)            = spval
           this%bglfr_froot_patch(p)           = spval
           this%bgtr_patch(p)                  = spval
+          this%onset_flag_root_patch(p)       = spval
+          this%onset_gddflag_root_patch(p)    = spval
+          this%onset_gdd_root_patch(p)        = spval
+          this%onset_counter_root_patch(p)    = spval
+          this%offset_flag_root_patch(p)      = spval
+          this%offset_counter_root_patch(p)   = spval
+          this%dormant_flag_root_patch(p)     = spval
+          this%fcur_dyn_patch(p)              = spval
+          this%onset_froot_fnmin_patch(p)     = spval
+          this%onset_froot_fw_patch(p)        = spval
+          this%lfr_froot_td_patch(p)          = spval
+          this%lfr_froot_wd_patch(p)          = spval
           this%alloc_pnow_patch(p)            = spval
           this%c_allometry_patch(p)           = spval
           this%n_allometry_patch(p)           = spval
@@ -1132,6 +1230,19 @@ contains
           this%annavg_t2m_patch(p)     = 280._r8
           this%tempavg_t2m_patch(p)    = 0._r8
           this%grain_flag_patch(p)     = 0._r8
+
+          this%onset_flag_root_patch(p)       = 0._r8
+          this%onset_gddflag_root_patch(p)    = 0._r8
+          this%onset_gdd_root_patch(p)        = 0._r8
+          this%onset_counter_root_patch(p)    = 0._r8
+          this%offset_flag_root_patch(p)      = 0._r8
+          this%offset_counter_root_patch(p)   = 0._r8
+          this%dormant_flag_root_patch(p)     = 1._r8
+          this%fcur_dyn_patch(p)              = 0._r8
+          this%onset_froot_fnmin_patch(p)     = 0._r8
+          this%onset_froot_fw_patch(p)        = 0._r8
+          this%lfr_froot_td_patch(p)          = 0._r8
+          this%lfr_froot_wd_patch(p)          = 0._r8
 
           ! non-phenology variables
           this%alloc_pnow_patch(p)            = 1._r8
@@ -1280,6 +1391,66 @@ contains
          dim1name='pft', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%tempavg_t2m_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='onset_flag_root_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%onset_flag_root_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='onset_gddflag_root_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%onset_gddflag_root_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='onset_gdd_root_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%onset_gdd_root_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='onset_counter_root_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%onset_counter_root_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='offset_flag_root_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%offset_flag_root_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='offset_counter_root_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%offset_counter_root_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='dormant_flag_root_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%dormant_flag_root_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='fcur_dyn_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%fcur_dyn_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='onset_froot_fnmin_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%onset_froot_fnmin_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='onset_froot_fw_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%onset_froot_fw_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='lfr_froot_td_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%lfr_froot_td_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='lfr_froot_wd_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%lfr_froot_wd_patch) 
 
     call restartvar(ncid=ncid, flag=flag, varname='alloc_pnow', xtype=ncd_double,  &
          dim1name='pft', &
@@ -1636,6 +1807,5 @@ contains
     deallocate(rbufslp)
 
   end subroutine UpdateAccVars
-
 
 end module CNStateType
