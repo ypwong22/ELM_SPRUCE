@@ -834,6 +834,7 @@ module VegetationDataType
     real(r8), pointer :: dwt_seedn_to_npool                  (:)   => null()  ! (gN/m2/s) seed source to PFT level
     ! Misc
     real(r8), pointer :: plant_ndemand                       (:)   => null()  ! N flux required to support initial GPP (gN/m2/s)
+    real(r8), pointer :: plant_nabsorb                       (:)   => null()  ! pft-level plant N demand absorbable by root biomass (gN/m2/s)
     real(r8), pointer :: avail_retransn                      (:)   => null()  ! N flux available from retranslocation pool (gN/m2/s)
     real(r8), pointer :: plant_nalloc                        (:)   => null()  ! total allocated N flux (gN/m2/s)
     real(r8), pointer :: smin_no3_to_plant                   (:)   => null()  ! pft level plant uptake of soil NO3 (gN/m2/s) BGC mode
@@ -1004,6 +1005,7 @@ module VegetationDataType
     real(r8), pointer :: dwt_crop_productp_gain              (:)     ! (gP/m2/s) addition to crop product pool from landcover change; even though this is a patch-level flux, it is expressed per unit GRIDCELL area
     real(r8), pointer :: dwt_seedp_to_ppool                  (:)     ! (gP/m2/s) seed source to PFT-level
     real(r8), pointer :: plant_pdemand                       (:)     ! P flux required to support initial GPP (gP/m2/s)
+    real(r8), pointer :: plant_pabsorb                       (:)     ! P flux that can be absorbed by fine root biomass (gP/m2/s)
     real(r8), pointer :: avail_retransp                      (:)     ! P flux available from retranslocation pool (gP/m2/s)
     real(r8), pointer :: plant_palloc                        (:)     ! total allocated P flux (gP/m2/s)
     real(r8), pointer :: sminp_to_plant                      (:)     ! plant p uptake (gP/m2/s)
@@ -8984,6 +8986,7 @@ module VegetationDataType
     allocate(this%dwt_crop_productn_gain              (begp:endp)) ; this%dwt_crop_productn_gain              (:) = spval
     allocate(this%dwt_seedn_to_npool                  (begp:endp)) ; this%dwt_seedn_to_npool                  (:) = spval
     allocate(this%plant_ndemand                       (begp:endp)) ; this%plant_ndemand                       (:) = spval
+    allocate(this%plant_nabsorb                       (begp:endp)) ; this%plant_nabsorb                       (:) = spval
     allocate(this%smin_no3_to_plant_vr                (begp:endp,1:nlevdecomp_full)) ; this%smin_no3_to_plant_vr(:,:) = spval
     allocate(this%smin_nh4_to_plant_vr                (begp:endp,1:nlevdecomp_full)); this%smin_nh4_to_plant_vr(:,:) = spval
     allocate(this%avail_retransn                      (begp:endp)) ; this%avail_retransn                      (:) = spval
@@ -9471,6 +9474,11 @@ module VegetationDataType
          avgflag='A', long_name='N flux required to support initial GPP', &
          ptr_patch=this%plant_ndemand)
 
+    this%plant_nabsorb(begp:endp) = spval
+    call hist_addfld1d (fname='PLANT_NABSORB', units='gN/m^2/s', &
+         avgflag='A', long_name='N flux that can be absorbed by fine root biomass', &
+         ptr_patch=this%plant_nabsorb)
+
     this%avail_retransn(begp:endp) = spval
     call hist_addfld1d (fname='AVAIL_RETRANSN', units='gN/m^2/s', &
          avgflag='A', long_name='N flux available from retranslocation pool', &
@@ -9545,6 +9553,7 @@ module VegetationDataType
 
        if (lun_pp%ifspecial(l)) then
           this%plant_ndemand(p)  = spval
+          this%plant_nabsorb(p)  = spval
           this%avail_retransn(p) = spval
           this%plant_nalloc(p)   = spval
        end if
@@ -9625,6 +9634,11 @@ module VegetationDataType
          dim1name='pft', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%plant_ndemand)
+
+    call restartvar(ncid=ncid, flag=flag, varname='plant_nabsorb', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%plant_nabsorb)
 
     call restartvar(ncid=ncid, flag=flag, varname='avail_retransn', xtype=ncd_double,  &
          dim1name='pft', &
@@ -10075,6 +10089,7 @@ module VegetationDataType
     allocate(this%dwt_crop_productp_gain              (begp:endp)) ; this%dwt_crop_productp_gain              (:) = spval
     allocate(this%dwt_seedp_to_ppool                  (begp:endp)) ; this%dwt_seedp_to_ppool                  (:) = spval
     allocate(this%plant_pdemand                       (begp:endp)) ; this%plant_pdemand                       (:) = spval
+    allocate(this%plant_pabsorb                       (begp:endp)) ; this%plant_pabsorb                       (:) = spval
     allocate(this%avail_retransp                      (begp:endp)) ; this%avail_retransp                      (:) = spval
     allocate(this%plant_palloc                        (begp:endp)) ; this%plant_palloc                        (:) = spval
     allocate(this%sminp_to_plant                      (begp:endp)) ; this%sminp_to_plant                      (:) = spval
@@ -10574,6 +10589,11 @@ module VegetationDataType
          avgflag='A', long_name='P flux required to support initial GPP', &
          ptr_patch=this%plant_pdemand)
 
+    this%plant_pabsorb(begp:endp) = spval
+    call hist_addfld1d (fname='PLANT_PABSORB', units='gP/m^2/s', &
+         avgflag='A', long_name='P flux that can be absorbed by fine root biomass', &
+         ptr_patch=this%plant_pabsorb)
+
     this%avail_retransp(begp:endp) = spval
     call hist_addfld1d (fname='AVAIL_RETRANSP', units='gP/m^2/s', &
          avgflag='A', long_name='P flux available from retranslocation pool', &
@@ -10614,6 +10634,7 @@ module VegetationDataType
 
        if (lun_pp%ifspecial(l)) then
           this%plant_pdemand(p)  = spval
+          this%plant_pabsorb(p)  = spval
           this%avail_retransp(p) = spval
           this%plant_palloc(p)   = spval
        end if
@@ -10698,6 +10719,11 @@ module VegetationDataType
          dim1name='pft', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%plant_pdemand)
+
+    call restartvar(ncid=ncid, flag=flag, varname='plant_pabsorb', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%plant_pabsorb)
 
     call restartvar(ncid=ncid, flag=flag, varname='avail_retransp', xtype=ncd_double,  &
          dim1name='pft', &

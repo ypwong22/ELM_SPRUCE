@@ -56,6 +56,8 @@ module VegetationPropertiesType
                                                        ! (phloem and ray parenchyma) (no units)
      real(r8), pointer :: fcur          (:) => null()  ! allocation parameter: fraction of allocation that goes
                                                        ! to currently displayed growth, remainder to storage
+     real(r8), pointer :: fcur_root     (:) => null()  ! root allocation parameter: fraction of allocation that goes
+                                                       ! to currently displayed growth, remainder to storage
      real(r8), pointer :: lf_flab       (:) => null()  ! leaf litter labile fraction
      real(r8), pointer :: lf_fcel       (:) => null()  ! leaf litter cellulose fraction
      real(r8), pointer :: lf_flig       (:) => null()  ! leaf litter lignin fraction
@@ -148,8 +150,6 @@ module VegetationPropertiesType
      real(r8), pointer :: br_xr(:)         => null()   !Base rate for excess respiration
      real(r8), pointer :: br_mr_pft(:)     => null()   !Base rate for maintanence respiration
      real(r8), pointer :: q10_mr_pft(:)    => null()   !Q10 for maintanence respiration
-     real(r8), pointer :: crit_gdd1(:) => null()   !Deciduous pheonlogy critical GDD intercept
-     real(r8), pointer :: crit_gdd2(:) => null()   !Deciduous pheonlogy critical GDD slope
      real(r8), pointer :: tc_stress        => null()   !Critial temperature for moisture stress
 
      !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
@@ -163,7 +163,6 @@ module VegetationPropertiesType
      real(r8), allocatable :: sal_opt(:)             !Salinity at which optimal biomass occurs (ppt)
      real(r8), allocatable :: sal_tol(:)             !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
      real(r8), allocatable :: floodf(:)              !Growth inhibition factor due to flooding/inundation (0-1)
-
    contains
    procedure, public :: Init => veg_vp_init
 
@@ -182,7 +181,7 @@ contains
     use pftvarcon , only : z0mr, displar, dleaf, rhol, rhos, taul, taus, xl
     use pftvarcon , only : c3psn, slatop, dsladlai, leafcn, flnr, woody
     use pftvarcon , only : lflitcn, frootcn, livewdcn, deadwdcn, froot_leaf, stem_leaf, croot_stem
-    use pftvarcon , only : flivewd, fcur, lf_flab, lf_fcel, lf_flig, fr_flab, fr_fcel, fr_flig
+    use pftvarcon , only : flivewd, fcur, fcur_root, lf_flab, lf_fcel, lf_flig, fr_flab, fr_fcel, fr_flig
     use pftvarcon , only : leaf_long, froot_long, rhizome_long, evergreen, stress_decid, season_decid
     use pftvarcon , only : manunitro, graincn, fleafcn, ffrootcn, fstemcn, dwood
     use pftvarcon , only : presharv, convfact, fyield
@@ -200,7 +199,7 @@ contains
     use pftvarcon , only : leafcp_obs, frootcp_obs, livewdcp_obs, deadwdcp_obs
     use pftvarcon , only : fnr, act25, kcha, koha, cpha, vcmaxha, jmaxha, tpuha
     use pftvarcon , only : lmrha, vcmaxhd, jmaxhd, tpuhd, lmrse, qe, theta_cj
-    use pftvarcon , only : bbbopt, mbbopt, nstor, br_xr, br_mr_pft, q10_mr_pft, tc_stress, lmrhd, crit_gdd1, crit_gdd2
+    use pftvarcon , only : bbbopt, mbbopt, nstor, br_xr, br_mr_pft, q10_mr_pft, tc_stress, lmrhd
     use pftvarcon , only : sal_threshold, KM_salinity, osm_inhib, sal_opt, sal_tol, floodf
     !
     !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
@@ -245,6 +244,7 @@ contains
     allocate(this%croot_stem    (0:numpft))        ; this%croot_stem   (:)   =spval
     allocate(this%flivewd       (0:numpft))        ; this%flivewd      (:)   =spval
     allocate(this%fcur          (0:numpft))        ; this%fcur         (:)   =spval
+    allocate(this%fcur_root     (0:numpft))        ; this%fcur_root    (:)   =spval
     allocate(this%lf_flab       (0:numpft))        ; this%lf_flab      (:)   =spval
     allocate(this%lf_fcel       (0:numpft))        ; this%lf_fcel      (:)   =spval
     allocate(this%lf_flig       (0:numpft))        ; this%lf_flig      (:)   =spval
@@ -335,9 +335,6 @@ contains
     allocate(this%tc_stress    )
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-    allocate( this%crit_gdd1(0:numpft))                          ; this%crit_gdd1(:)             =spval
-    allocate( this%crit_gdd2(0:numpft))                          ; this%crit_gdd2(:)             =spval
     !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
     allocate(this%nonvascular(0:numpft))                         ; this%nonvascular(:)           =huge(1)
     allocate(this%nfixer(0:numpft))                              ; this%nfixer(:)                =huge(1)
@@ -348,6 +345,7 @@ contains
     allocate( this%sal_opt(0:numpft))              ; this%sal_opt(:)             =spval
     allocate( this%sal_tol(0:numpft))              ; this%sal_tol(:)             =spval 
     allocate( this%floodf(0:numpft))               ; this%floodf(:)              =spval
+
     do m = 0,numpft
 
        if (m <= ntree) then
@@ -386,6 +384,7 @@ contains
        this%croot_stem(m)   = croot_stem(m)
        this%flivewd(m)      = flivewd(m)
        this%fcur(m)         = fcur(m)
+       this%fcur_root(m)    = fcur_root(m)
        this%lf_flab(m)      = lf_flab(m)
        this%lf_fcel(m)      = lf_fcel(m)
        this%lf_flig(m)      = lf_flig(m)
@@ -439,9 +438,6 @@ contains
        this%br_mr_pft(m)    = br_mr_pft(m)
        this%q10_mr_pft(m)   = q10_mr_pft(m)
 #endif
-       this%crit_gdd1(m)    = crit_gdd1(m)
-       this%crit_gdd2(m)    = crit_gdd2(m)
- 
 
        this%Nfix_NPP_c1(m)  = Nfix_NPP_c1(m)
        this%Nfix_NPP_c2(m)  = Nfix_NPP_c2(m)

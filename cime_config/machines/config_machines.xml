@@ -4318,8 +4318,6 @@
       <env name="NETCDF_FORTRAN_PATH">/ccsopen/home/zdr/opt</env>
       <env name="BLASLAPACK_LIBDIR">$ENV{OLCF_NETLIB_LAPACK_ROOT}/lib64</env>
     </environment_variables>
-
-
  
   </machine>
 

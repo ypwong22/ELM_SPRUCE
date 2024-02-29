@@ -177,6 +177,7 @@ module pftvarcon
   real(r8), allocatable :: croot_stem(:)   !allocation parameter: new coarse root C per new stem C (gC/gC)
   real(r8), allocatable :: flivewd(:)      !allocation parameter: fraction of new wood that is live (phloem and ray parenchyma) (no units)
   real(r8), allocatable :: fcur(:)         !allocation parameter: fraction of allocation that goes to currently displayed growth, remainder to storage
+  real(r8), allocatable :: fcur_root(:)    !root allocation parameter: fraction of allocation that goes to currently displayed growth, remainder to storage
   real(r8), allocatable :: lf_flab(:)      !leaf litter labile fraction
   real(r8), allocatable :: lf_fcel(:)      !leaf litter cellulose fraction
   real(r8), allocatable :: lf_flig(:)      !leaf litter lignin fraction
@@ -296,8 +297,6 @@ module pftvarcon
   real(r8), allocatable :: bbbopt(:)           !Ball-Berry stomatal conductance intercept
   real(r8), allocatable :: mbbopt(:)           !Ball-Berry stomatal conductance slope
   real(r8), allocatable :: nstor(:)            !Nitrogen storage pool timescale 
-  real(r8), allocatable :: crit_gdd1(:)        !Critical GDD intercept
-  real(r8), allocatable :: crit_gdd2(:)        !Critical GDD slope with MAT
   real(r8), allocatable :: br_xr(:)            !Base rate for excess respiration
   real(r8), allocatable :: br_mr_pft(:)         !Base rate for maintenance respiration pft specific
   real(r8), allocatable :: q10_mr_pft(:)        !Q10 for maintenance respiration pft specific
@@ -558,6 +557,7 @@ contains
     allocate( croot_stem    (0:mxpft) )   
     allocate( flivewd       (0:mxpft) )      
     allocate( fcur          (0:mxpft) )         
+    allocate( fcur_root     (0:mxpft) )         
     allocate( lf_flab       (0:mxpft) )      
     allocate( lf_fcel       (0:mxpft) )      
     allocate( lf_flig       (0:mxpft) )      
@@ -669,8 +669,6 @@ contains
     allocate( br_xr              (0:mxpft) )
     allocate( br_mr_pft          (0:mxpft) )
     allocate( q10_mr_pft          (0:mxpft) )
-    allocate( crit_gdd1          (0:mxpft) )
-    allocate( crit_gdd2          (0:mxpft) )
     ! Ground cover for soil erosion
     allocate( gcbc_p             (0:mxpft) )
     allocate( gcbc_q             (0:mxpft) )
@@ -815,6 +813,8 @@ contains
     call ncd_io('flivewd',flivewd(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     call ncd_io('fcur',fcur(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
+    call ncd_io('fcur_root',fcur_root(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     call ncd_io('lf_flab',lf_flab(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
@@ -1226,10 +1226,6 @@ contains
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     !q10_mr(:) = q10_mrtmp 
 #endif
-    call ncd_io('crit_gdd1', crit_gdd1, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if (.not. readv) crit_gdd1(:) = 4.8_r8
-    call ncd_io('crit_gdd2', crit_gdd2, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if (.not. readv) crit_gdd2(:) = 0.13_r8
     call ncd_io('tc_stress', tc_stress, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     call ncd_io('gcbc_p',gcbc_p, 'read', ncid, readvar=readv, posNOTonfile=.true.)
