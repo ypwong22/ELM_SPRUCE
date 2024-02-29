@@ -128,11 +128,13 @@ module CNStateType
      real(r8), pointer :: bglfr_patch                  (:)     ! patch background litterfall rate (1/s)
      real(r8), pointer :: bglfr_leaf_patch             (:)     ! patch background leaf litterfall rate (1/s)
      real(r8), pointer :: bglfr_froot_patch            (:)     ! patch background fine root litterfall rate (1/s)
-     real(r8), pointer :: bgtr_patch                   (:)     ! patch background transfer growth rate (1/s)
+     real(r8), pointer :: bgtr_patch                   (:)     ! patch background transfer growth rate (1/s), leaf or whole plant
+     real(r8), pointer :: bgtr_root_patch              (:)     ! patch background transfer growth rate (1/s), root only
 
      real(r8), pointer :: onset_flag_root_patch        (:)     ! patch onset flag for root growth
      real(r8), pointer :: onset_gddflag_root_patch     (:)     ! patch onset flag for root growing degree days sum
      real(r8), pointer :: onset_gdd_root_patch         (:)     ! patch onset growing degree days for root growing degree days
+     real(r8), pointer :: onset_chil_root_patch        (:)     ! patch onset chiling degree days for root growing degree days
      real(r8), pointer :: onset_counter_root_patch     (:)     ! patch onset days counter for root
      real(r8), pointer :: offset_flag_root_patch       (:)     ! patch offset flag for root
      real(r8), pointer :: offset_counter_root_patch    (:)     ! patch offset days counter for root
@@ -332,9 +334,11 @@ contains
     allocate(this%bglfr_leaf_patch            (begp:endp)) ;    this%bglfr_leaf_patch            (:) = spval
     allocate(this%bglfr_froot_patch           (begp:endp)) ;    this%bglfr_froot_patch           (:) = spval
     allocate(this%bgtr_patch                  (begp:endp)) ;    this%bgtr_patch                  (:) = spval
+    allocate(this%bgtr_root_patch             (begp:endp)) ;    this%bgtr_root_patch             (:) = spval
     allocate(this%onset_flag_root_patch       (begp:endp)) ;    this%onset_flag_root_patch         (:) = spval
     allocate(this%onset_gddflag_root_patch    (begp:endp)) ;    this%onset_gddflag_root_patch    (:) = spval
     allocate(this%onset_gdd_root_patch        (begp:endp)) ;    this%onset_gdd_root_patch         (:) = spval
+    allocate(this%onset_chil_root_patch       (begp:endp)) ;    this%onset_chil_root_patch        (:) = spval
     allocate(this%onset_counter_root_patch    (begp:endp)) ;    this%onset_counter_root_patch      (:) = spval
     allocate(this%offset_flag_root_patch      (begp:endp)) ;    this%offset_flag_root_patch        (:) = spval
     allocate(this%offset_counter_root_patch   (begp:endp)) ;    this%offset_counter_root_patch     (:) = spval
@@ -636,6 +640,11 @@ contains
          avgflag='A', long_name='background transfer growth rate', &
          ptr_patch=this%bgtr_patch, default='inactive')
 
+    this%bgtr_root_patch(begp:endp) = spval
+    call hist_addfld1d (fname='BGTR_ROOT', units='1/s', &
+         avgflag='A', long_name='background transfer growth rate, root only', &
+         ptr_patch=this%bgtr_root_patch, default='inactive')
+
     this%onset_flag_root_patch(begp:endp) = spval
     call hist_addfld1d (fname='ONSET_FLAG_ROOT', units='', &
          avgflag='A', long_name='onset flag for root growth', &
@@ -650,6 +659,11 @@ contains
     call hist_addfld1d (fname='ONSET_GDD_ROOT', units='', &
          avgflag='A', long_name='onset root growing degrees sum', &
          ptr_patch=this%onset_gdd_root_patch, default='inactive')
+
+    this%onset_chil_root_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ONSET_CHIL_ROOT', units='', &
+         avgflag='A', long_name='onset root chiling degrees sum', &
+         ptr_patch=this%onset_chil_root_patch, default='inactive')
 
     this%onset_counter_root_patch(begp:endp) = spval
     call hist_addfld1d (fname='ONSET_COUNTER_ROOT', units='', &
@@ -1170,9 +1184,11 @@ contains
           this%bglfr_leaf_patch(p)            = spval
           this%bglfr_froot_patch(p)           = spval
           this%bgtr_patch(p)                  = spval
+          this%bgtr_root_patch(p)             = spval
           this%onset_flag_root_patch(p)       = spval
           this%onset_gddflag_root_patch(p)    = spval
           this%onset_gdd_root_patch(p)        = spval
+          this%onset_chil_root_patch(p)       = spval
           this%onset_counter_root_patch(p)    = spval
           this%offset_flag_root_patch(p)      = spval
           this%offset_counter_root_patch(p)   = spval
@@ -1196,11 +1212,10 @@ contains
           this%annmax_retransp_patch(p)       = spval
 
           this%r_mort_cal_patch(p)           = spval
-
  
        end if
     end do
-       
+
     ! ecophysiological variables
 
     do p = bounds%begp,bounds%endp
@@ -1227,6 +1242,7 @@ contains
           this%bglfr_leaf_patch(p)     = 0._r8
           this%bglfr_froot_patch(p)    = 0._r8
           this%bgtr_patch(p)           = 0._r8
+          this%bgtr_root_patch(p)      = 0._r8
           this%annavg_t2m_patch(p)     = 280._r8
           this%tempavg_t2m_patch(p)    = 0._r8
           this%grain_flag_patch(p)     = 0._r8
@@ -1234,6 +1250,7 @@ contains
           this%onset_flag_root_patch(p)       = 0._r8
           this%onset_gddflag_root_patch(p)    = 0._r8
           this%onset_gdd_root_patch(p)        = 0._r8
+          this%onset_chil_root_patch(p)       = 0._r8
           this%onset_counter_root_patch(p)    = 0._r8
           this%offset_flag_root_patch(p)      = 0._r8
           this%offset_counter_root_patch(p)   = 0._r8
@@ -1382,6 +1399,11 @@ contains
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%bgtr_patch) 
 
+    call restartvar(ncid=ncid, flag=flag, varname='bgtr_root', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%bgtr_root_patch)
+
     call restartvar(ncid=ncid, flag=flag, varname='annavg_t2m', xtype=ncd_double,  &
          dim1name='pft', &
          long_name='', units='', &
@@ -1406,6 +1428,11 @@ contains
          dim1name='pft', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%onset_gdd_root_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='onset_chil_root_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%onset_chil_root_patch) 
 
     call restartvar(ncid=ncid, flag=flag, varname='onset_counter_root_patch', xtype=ncd_double,  &
          dim1name='pft', &

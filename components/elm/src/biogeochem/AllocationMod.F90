@@ -1427,9 +1427,7 @@ contains
                  supplement_to_sminn_vr(c,j) = supplement_to_sminn_vr(c,j) + col_plant_ndemand_vr(c,j)
                  smin_nh4_to_plant_vr(c,j) = col_plant_ndemand_vr(c,j) - smin_no3_to_plant_vr(c,j)
               end if
-              
 
-              
            end if
 
            ! sum up nitrogen limitation to decomposition

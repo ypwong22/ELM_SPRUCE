@@ -296,8 +296,6 @@ module pftvarcon
   real(r8), allocatable :: bbbopt(:)           !Ball-Berry stomatal conductance intercept
   real(r8), allocatable :: mbbopt(:)           !Ball-Berry stomatal conductance slope
   real(r8), allocatable :: nstor(:)            !Nitrogen storage pool timescale 
-  real(r8), allocatable :: crit_gdd1(:)        !Critical GDD intercept
-  real(r8), allocatable :: crit_gdd2(:)        !Critical GDD slope with MAT
   real(r8), allocatable :: br_xr(:)            !Base rate for excess respiration
   real(r8), allocatable :: br_mr_pft(:)         !Base rate for maintenance respiration pft specific
   real(r8), allocatable :: q10_mr_pft(:)        !Q10 for maintenance respiration pft specific
@@ -669,8 +667,6 @@ contains
     allocate( br_xr              (0:mxpft) )
     allocate( br_mr_pft          (0:mxpft) )
     allocate( q10_mr_pft          (0:mxpft) )
-    allocate( crit_gdd1          (0:mxpft) )
-    allocate( crit_gdd2          (0:mxpft) )
     ! Ground cover for soil erosion
     allocate( gcbc_p             (0:mxpft) )
     allocate( gcbc_q             (0:mxpft) )
@@ -1226,10 +1222,6 @@ contains
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     !q10_mr(:) = q10_mrtmp 
 #endif
-    call ncd_io('crit_gdd1', crit_gdd1, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if (.not. readv) crit_gdd1(:) = 4.8_r8
-    call ncd_io('crit_gdd2', crit_gdd2, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if (.not. readv) crit_gdd2(:) = 0.13_r8
     call ncd_io('tc_stress', tc_stress, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     call ncd_io('gcbc_p',gcbc_p, 'read', ncid, readvar=readv, posNOTonfile=.true.)
