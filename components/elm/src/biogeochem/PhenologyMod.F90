@@ -1793,7 +1793,7 @@ contains
                      deadstemp_xfer(p) = 0.0_r8
                   end if
 
-#if HUM_HOL
+#ifdef HUM_HOL
                   if ((ivt(p) .ne. nbrdlf_dcd_brl_shrub) .and. (ivt(p) .ne. nbrdlf_dcd_brl_tree)) then
                      frootc_xfer_to_frootc(p) = 0.0_r8
                      frootn_xfer_to_frootn(p) = 0.0_r8
