@@ -161,7 +161,6 @@ module VegetationPropertiesType
      real(r8), allocatable :: sal_opt(:)             !Salinity at which optimal biomass occurs (ppt)
      real(r8), allocatable :: sal_tol(:)             !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
      real(r8), allocatable :: floodf(:)              !Growth inhibition factor due to flooding/inundation (0-1)
-
    contains
    procedure, public :: Init => veg_vp_init
 
@@ -343,6 +342,7 @@ contains
     allocate( this%sal_opt(0:numpft))              ; this%sal_opt(:)             =spval
     allocate( this%sal_tol(0:numpft))              ; this%sal_tol(:)             =spval 
     allocate( this%floodf(0:numpft))               ; this%floodf(:)              =spval
+
     do m = 0,numpft
 
        if (m <= ntree) then

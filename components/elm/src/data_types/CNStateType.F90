@@ -69,6 +69,7 @@ module CNStateType
      real(r8) , pointer :: fpi_vr_col                  (:,:)   ! col fraction of potential immobilization (no units) 
      real(r8) , pointer :: fpi_col                     (:)     ! col fraction of potential immobilization (no units) 
      real(r8),  pointer :: fpg_col                     (:)     ! col fraction of potential gpp (no units)
+     real(r8),  pointer :: fpg_patch                   (:)     ! patch-level fraction of potential gpp (no units)
 
      !!! add phosphorus  -X. YANG
 
@@ -76,6 +77,12 @@ module CNStateType
      real(r8) , pointer :: fpi_p_vr_col                (:,:)   ! col fraction of potential immobilization (no units) 
      real(r8) , pointer :: fpi_p_col                   (:)     ! col fraction of potential immobilization (no units) 
      real(r8),  pointer :: fpg_p_col                   (:)     ! col fraction of potential gpp (no units)
+     real(r8),  pointer :: fpg_p_patch                 (:)     ! patch-level fraction of potential gpp (no units)
+
+#ifdef HUM_HOL
+     real(r8),  pointer :: prev_fpg_patch              (:)      ! patch-level fraction of potential gpp (no units)
+     real(r8),  pointer :: prev_fpg_p_patch            (:)    ! patch-level fraction of potential gpp (no units)
+#endif
 
      real(r8) , pointer :: rf_decomp_cascade_col       (:,:,:) ! col respired fraction in decomposition step (frac)
      real(r8) , pointer :: pathfrac_decomp_cascade_col (:,:,:) ! col what fraction of C leaving a given pool passes through a given transition (frac) 
@@ -277,6 +284,13 @@ contains
     allocate(this%fpi_p_col             (begc:endc))                   ; this%fpi_p_col             (:)   = spval
     allocate(this%fpg_p_col             (begc:endc))                   ; this%fpg_p_col             (:)   = spval
     allocate(this%pdep_prof_col         (begc:endc,1:nlevdecomp_full)) ; this%pdep_prof_col       (:,:) = spval
+
+    allocate(this%fpg_patch             (begp:endp))                   ; this%fpg_patch           (:)   = spval
+    allocate(this%fpg_p_patch           (begp:endp))                   ; this%fpg_p_patch           (:)   = spval
+
+    ! in the first step, the "previous" time step has no nutrients limitation
+    allocate( this%prev_fpg_patch       (begp:endp))                   ; this%prev_fpg_patch       (:) = 1._r8
+    allocate( this%prev_fpg_p_patch     (begp:endp))                   ; this%prev_fpg_p_patch    (:) = 1._r8
 
     allocate(this%rf_decomp_cascade_col(begc:endc,1:nlevdecomp_full,1:ndecomp_cascade_transitions)); 
     this%rf_decomp_cascade_col(:,:,:) = spval
@@ -505,10 +519,30 @@ contains
          avgflag='A', long_name='fraction of potential gpp due to N limitation', &
          ptr_col=this%fpg_col)
 
+    this%fpg_patch(begp:endp) = spval
+    call hist_addfld1d (fname='FPG_PATCH', units='proportion', &
+         avgflag='A', long_name='pft-level fraction of potential gpp due to N limitation', &
+         ptr_col=this%fpg_patch)
+
+    this%prev_fpg_patch(begp:endp) = spval
+    call hist_addfld1d (fname='PREV_FPG_PATCH', units='proportion', &
+         avgflag='A', long_name='previous time step pft-level fraction of potential gpp due to N limitation', &
+         ptr_col=this%prev_fpg_patch)
+
     this%fpg_p_col(begc:endc) = spval
     call hist_addfld1d (fname='FPG_P', units='proportion', &
          avgflag='A', long_name='fraction of potential gpp due to P limitation', &
          ptr_col=this%fpg_p_col)
+
+    this%fpg_p_patch(begp:endp) = spval
+    call hist_addfld1d (fname='FPG_P_PATCH', units='proportion', &
+         avgflag='A', long_name='pft-level fraction of potential gpp due to P limitation', &
+         ptr_col=this%fpg_p_patch)
+
+    this%prev_fpg_p_patch(begp:endp) = spval
+    call hist_addfld1d (fname='PREV_FPG_P_PATCH', units='proportion', &
+         avgflag='A', long_name='previous time step pft-level fraction of potential gpp due to P limitation', &
+         ptr_col=this%prev_fpg_p_patch)
 
     this%annsum_counter_col(begc:endc) = spval
     call hist_addfld1d (fname='ANNSUM_COUNTER', units='s', &
@@ -1120,8 +1154,12 @@ contains
           this%farea_burned_col   (c) = spval
           this%fpi_col            (c) = spval
           this%fpg_col            (c) = spval
+          this%fpg_patch          (c) = spval
+          this%prev_fpg_patch     (c) = 1._r8
           this%fpi_p_col          (c) = spval
           this%fpg_p_col          (c) = spval
+          this%fpg_p_patch        (c) = spval
+          this%prev_fpg_p_patch   (c) = 1._r8
           do j = 1,nlevdecomp_full
              this%fpi_vr_col(c,j) = spval
              this%fpi_p_vr_col(c,j) = spval
@@ -1580,10 +1618,30 @@ contains
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%fpg_col) 
 
+    call restartvar(ncid=ncid, flag=flag, varname='fpg_patch', xtype=ncd_double,  &
+         dim1name='column', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%fpg_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='prev_fpg_patch', xtype=ncd_double,  &
+         dim1name='column', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%prev_fpg_patch)
+
     call restartvar(ncid=ncid, flag=flag, varname='fpg_p', xtype=ncd_double,  &
          dim1name='column', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%fpg_p_col) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='fpg_p_patch', xtype=ncd_double,  &
+         dim1name='column', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%fpg_p_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='prev_fpg_p_patch', xtype=ncd_double,  &
+         dim1name='column', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%prev_fpg_p_patch)
 
     call restartvar(ncid=ncid, flag=flag, varname='annsum_counter', xtype=ncd_double,  &
          dim1name='column', &

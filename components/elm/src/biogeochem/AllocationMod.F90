@@ -7,6 +7,7 @@ module AllocationMod
   !
   ! !USES:
   use shr_kind_mod        , only : r8 => shr_kind_r8
+  use shr_sys_mod         , only : shr_sys_flush
   use shr_log_mod         , only : errMsg => shr_log_errMsg
   use elm_varcon          , only : dzsoi_decomp
   use elm_varctl          , only : use_c13, use_c14, spinup_state
@@ -72,6 +73,11 @@ module AllocationMod
      real(r8), pointer :: compet_decomp_nh4 => null() ! (unitless) relative competitiveness of immobilizers for NH4
      real(r8), pointer :: compet_denit      => null() ! (unitless) relative competitiveness of denitrifiers for NO3
      real(r8), pointer :: compet_nit        => null() ! (unitless) relative competitiveness of nitrifiers for NH4
+
+#ifdef HUM_HOL
+     real(r8), pointer :: compet_pft_sminn(:) => null() ! (gN/gC) the tangent value of nitrogen uptake per unit fine root biomass if the N-limitation factor (fpi_pft) is infinity
+     real(r8), pointer :: compet_pft_sminp(:) => null() ! (gP/gC) the tangent value of phosphorus uptake per unit fine root biomass if the N-limitation factor (fpi_pft) is infinity
+#endif
 
   end type AllocParamsType
   !
@@ -141,7 +147,7 @@ contains
   subroutine readCNAllocParams ( ncid )
     !
     ! !USES:
-    use ncdio_pio , only : file_desc_t,ncd_io
+    use ncdio_pio , only : file_desc_t,ncd_io,ncd_inqdid,ncd_inqdlen
     ! !ARGUMENTS:
     implicit none
     type(file_desc_t),intent(inout) :: ncid   ! pio netCDF file id
@@ -149,10 +155,13 @@ contains
     ! !LOCAL VARIABLES:
     character(len=32)  :: subname = 'AllocParamsType'
     character(len=100) :: errCode = '-Error reading in parameters file:'
+    integer :: dimid            ! netCDF dimension id
+    integer :: npft             ! number of pfts on pft-physiology file
     logical            :: readv ! has variable been read in or not
     real(r8)           :: tempr ! temporary to read in parameter
     character(len=100) :: tString ! temp. var for reading
     !-----------------------------------------------------------------------
+
     allocate(AllocParamsInst%bdnr              )
     allocate(AllocParamsInst%dayscrecover      )
     allocate(AllocParamsInst%compet_plant_no3  )
@@ -161,6 +170,7 @@ contains
     allocate(AllocParamsInst%compet_decomp_nh4 )
     allocate(AllocParamsInst%compet_denit      )
     allocate(AllocParamsInst%compet_nit        )
+
     ! read in parameters
     tString='bdnr'
     call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
@@ -201,6 +211,23 @@ contains
     call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
     AllocParamsInst%compet_nit=tempr
+
+#ifdef HUM_HOL
+    call ncd_inqdid(ncid,'pft',dimid)
+    call ncd_inqdlen(ncid,dimid,npft)
+
+    allocate(AllocParamsInst%compet_pft_sminn(0:npft))
+    allocate(AllocParamsInst%compet_pft_sminp(0:npft))
+
+    tString='compet_pft_sminn'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%compet_pft_sminn, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='compet_pft_sminp'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%compet_pft_sminp, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+#endif HUM_HOL
 
   end subroutine readCNAllocParams
 
@@ -527,17 +554,26 @@ contains
          livestemn_to_retransn        => veg_nf%livestemn_to_retransn         , & ! Output: [real(r8) (:)   ]
 
          !!! add phosphorus variables  - X. YANG
-         retransp                     => veg_ps%retransp                   , & ! Input:  [real(r8) (:)   ]  (gP/m2) plant pool of retranslocated P
+         retransp                     => veg_ps%retransp                                       , & ! Input:  [real(r8) (:)   ]  (gP/m2) plant pool of retranslocated P
 
-         plant_pdemand                => veg_pf%plant_pdemand               , & ! Output: [real(r8) (:)   ]  P flux required to support initial GPP (gP/m2/s)
-         plant_palloc                 => veg_pf%plant_palloc                , & ! Output: [real(r8) (:)   ]  total allocated P flux (gP/m2/s)
-         avail_retransp               => veg_pf%avail_retransp              , & ! Output: [real(r8) (:)   ]  P flux available from retranslocation pool (gP/m2/s)
-         retransp_to_ppool            => veg_pf%retransp_to_ppool           , & ! Output: [real(r8) (:)   ]  deployment of retranslocated P (gP/m2/s)
+         plant_pdemand                => veg_pf%plant_pdemand                                  , & ! Output: [real(r8) (:)   ]  P flux required to support initial GPP (gP/m2/s)
+         plant_palloc                 => veg_pf%plant_palloc                                   , & ! Output: [real(r8) (:)   ]  total allocated P flux (gP/m2/s)
+         avail_retransp               => veg_pf%avail_retransp                                 , & ! Output: [real(r8) (:)   ]  P flux available from retranslocation pool (gP/m2/s)
+         retransp_to_ppool            => veg_pf%retransp_to_ppool                              , & ! Output: [real(r8) (:)   ]  deployment of retranslocated P (gP/m2/s)
          p_allometry                  => cnstate_vars%p_allometry_patch                        , & ! Output: [real(r8) (:)   ]  P allocation index (DIM)
          tempmax_retransp             => cnstate_vars%tempmax_retransp_patch                   , & ! Output: [real(r8) (:)   ]  temporary annual max of retranslocated P pool (gP/m2)
          annmax_retransp              => cnstate_vars%annmax_retransp_patch                    , & ! Output: [real(r8) (:)   ]  annual max of retranslocated P pool
-         km_plant_p                   => veg_vp%km_plant_p                                 , &
-         benefit_pgpp_pleafc          => veg_ns%benefit_pgpp_pleafc     &
+         km_plant_p                   => veg_vp%km_plant_p                                     , &
+         benefit_pgpp_pleafc          => veg_ns%benefit_pgpp_pleafc                            , &
+
+         ! PFT-specific nutrients limitation
+#ifdef HUM_HOL
+         prev_fpg_patch               => cnstate_vars%prev_fpg_patch          , & ! Input: [real(r8) (:)     ] previous step's N limitation
+         prev_fpg_p_patch             => cnstate_vars%prev_fpg_p_patch        , & ! Input: [real(r8) (:)     ] previous step's P limitation
+
+         plant_nabsorb                => veg_nf%plant_nabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up N (gN/m2/s)
+         plant_pabsorb                => veg_pf%plant_pabsorb                   & ! Input: [real(r8) (:)     ] fine root's ability to take up P
+#endif
          )
 
 
@@ -854,6 +890,7 @@ contains
             if(cplw>0) p_allometry(p) = p_allometry(p) + f3/cplw ! Rhizomes
             
          end if
+
          plant_ndemand(p) = availc(p)*(n_allometry(p)/c_allometry(p))
          plant_pdemand(p) = availc(p)*(p_allometry(p)/c_allometry(p))
 
@@ -905,9 +942,25 @@ contains
          end if
          plant_pdemand(p) = plant_pdemand(p) - retransp_to_ppool(p)
 
-
+#ifdef HUM_HOL
+         ! dynamic nutrients limitation for SPRUCE vegetation
+         ! calculate the root absorption capacity here
+         plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_patch(p)))
+         plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_p_patch(p)))
+#endif
       end do ! end pft loop
 
+#ifdef HUM_HOL
+      ! now use the p2c routine to get the column-averaged plant_ndemand
+      call p2c(bounds, num_soilc, filter_soilc, &
+           plant_nabsorb(bounds%begp:bounds%endp), &
+           plant_ndemand_col(bounds%begc:bounds%endc))
+
+      !!! add phosphorus
+      call p2c(bounds, num_soilc, filter_soilc, &
+           plant_pabsorb(bounds%begp:bounds%endp), &
+           plant_pdemand_col(bounds%begc:bounds%endc))
+#else
       ! now use the p2c routine to get the column-averaged plant_ndemand
       call p2c(bounds, num_soilc, filter_soilc, &
            plant_ndemand(bounds%begp:bounds%endp), &
@@ -917,6 +970,7 @@ contains
       call p2c(bounds, num_soilc, filter_soilc, &
            plant_pdemand(bounds%begp:bounds%endp), &
            plant_pdemand_col(bounds%begc:bounds%endc))
+#endif
 
    !!! Starting resolving N limitation
       !! new subroutines to calculate nuptake_prof & puptake_prof
@@ -1320,7 +1374,6 @@ contains
         
         if (nu_com .eq. 'RD') then
 
-
            ! Estimate actual allocation rates via Relative Demand
            ! approach (RD)
            
@@ -1609,7 +1662,7 @@ contains
               actual_immob_vr(c,j) = potential_immob_vr(c,j) * fpi_p_vr(c,j)
            end do
         end if
-        
+
         ! sum up plant N/P uptake at column level and patch level
         ! sum up N fluxes to plant after initial competition
         sminn_to_plant(c) = 0._r8
@@ -2057,7 +2110,7 @@ contains
          livestem_mr                  => veg_cf%livestem_mr                     , &
          livecroot_mr                 => veg_cf%livecroot_mr                    , &
          grain_mr                     => veg_cf%grain_mr                        , &
-         xsmrpool                     => veg_cs%xsmrpool                       , &
+         xsmrpool                     => veg_cs%xsmrpool                        , &
          xsmrpool_recover             => veg_cf%xsmrpool_recover                , &
          leaf_curmr                   => veg_cf%leaf_curmr                      , &
          froot_curmr                  => veg_cf%froot_curmr                     , &
@@ -2075,8 +2128,19 @@ contains
          xsmrpool_turnover            => veg_cf%xsmrpool_turnover               , &
          nsc_rtime                    => veg_vp%nsc_rtime                       , &
          supplement_to_plantn         => veg_nf%supplement_to_plantn            , &
-         supplement_to_plantp         => veg_pf%supplement_to_plantp          &
-         )
+         supplement_to_plantp         => veg_pf%supplement_to_plantp            , &
+
+#ifdef HUM_HOL
+         prev_fpg_patch               => cnstate_vars%prev_fpg_patch          , & ! Input: [real(r8) (:)     ] previous step's N limitation
+         prev_fpg_p_patch             => cnstate_vars%prev_fpg_p_patch        , & ! Input: [real(r8) (:)     ] previous step's P limitation
+
+         fpg_patch                    => cnstate_vars%fpg_patch               , & ! Input: [real(r8) (:)     ] previous step's N limitation
+         fpg_p_patch                  => cnstate_vars%fpg_p_patch             , & ! Input: [real(r8) (:)     ] previous step's P limitation
+
+         plant_nabsorb                => veg_nf%plant_nabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up N (gN/m2/s)
+         plant_pabsorb                => veg_pf%plant_pabsorb                   & ! Input: [real(r8) (:)     ] fine root's ability to take up P
+#endif
+      )
 
       !-------------------------------------------------------------------
       ! set time steps
@@ -2093,8 +2157,37 @@ contains
             c = filter_soilc(fc)
             do p = col_pp%pfti(c), col_pp%pftf(c)
                if (veg_pp%active(p) .and. (veg_pp%itype(p) .ne. noveg)) then
+
+#ifdef HUM_HOL
+                  ! calculate the PFT-level limitation factor here
+                  if (plant_ndemand(p) == 0._r8) then
+                     fpg_patch(p) = 1._r8
+                  else if (plant_ndemand(p) < (plant_nabsorb(p) * fpg(c))) then
+                     fpg_patch(p) = 1._r8
+                  else
+                     fpg_patch(p) = (plant_nabsorb(p) * fpg(c)) / plant_ndemand(p)
+                  end if
+
+                  if (plant_pdemand(p) == 0._r8) then
+                     fpg_p_patch(p) = 1._r8
+                  else if (plant_pdemand(p) < (plant_pabsorb(p) * fpg_p(c))) then
+                     fpg_p_patch(p) = 1._r8
+                  else
+                     fpg_p_patch(p) = (plant_pabsorb(p) * fpg_p(c)) / plant_pdemand(p)
+                  end if
+
+                  !
+                  plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + plant_ndemand(p) * fpg_patch(p) * veg_pp%wtcol(p)
+                  plant_p_uptake_flux(c) = plant_p_uptake_flux(c) + plant_pdemand(p) * fpg_p_patch(p) * veg_pp%wtcol(p)
+
+                  ! save the limitation values for next time step
+                  prev_fpg_patch(p) = fpg_patch(p)
+                  prev_fpg_p_patch(p) = fpg_p_patch(p)
+#else
                   plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + plant_ndemand(p) * fpg(c)*veg_pp%wtcol(p)
                   plant_p_uptake_flux(c) = plant_p_uptake_flux(c) + plant_pdemand(p) * fpg_p(c)*veg_pp%wtcol(p)
+#endif
+
                end if
             end do
          end do
@@ -2180,8 +2273,15 @@ contains
 
              if (veg_vp%nstor(veg_pp%itype(p)) > 1e-6_r8) then
                !N pool modification
+
+! Need to limit by the smaller growth of plant N & P demand
+#ifdef HUM_HOL
+               sminn_to_npool(p) = plant_ndemand(p) * min(fpg_patch(p), fpg_p_patch(p))
+               sminp_to_ppool(p) = plant_pdemand(p) * min(fpg_patch(p), fpg_p_patch(p))
+#else
                sminn_to_npool(p) = plant_ndemand(p) * min(fpg(c), fpg_p(c))
                sminp_to_ppool(p) = plant_pdemand(p) * min(fpg(c), fpg_p(c))
+#endif
 
                rc   = veg_vp%nstor(veg_pp%itype(p)) * max(annsum_npp(p) * n_allometry(p) / c_allometry(p), 0.01_r8)
                rc_p = veg_vp%nstor(veg_pp%itype(p)) * max(annsum_npp(p) * p_allometry(p) / c_allometry(p), 0.01_r8)
@@ -2206,8 +2306,13 @@ contains
                plant_palloc(p) = (plant_pdemand(p) + retransp_to_ppool(p)) / r
 
              else
+#ifdef HUM_HOL
+               sminn_to_npool(p) = plant_ndemand(p) * fpg_patch(p)
+               sminp_to_ppool(p) = plant_pdemand(p) * fpg_p_patch(p)
+#else
                sminn_to_npool(p) = plant_ndemand(p) * fpg(c)
                sminp_to_ppool(p) = plant_pdemand(p) * fpg_p(c)
+#endif
 
                plant_nalloc(p) = sminn_to_npool(p) + retransn_to_npool(p)
                plant_palloc(p) = sminp_to_ppool(p) + retransp_to_ppool(p)
