@@ -1560,7 +1560,7 @@ contains
       !$acc routine seq
     use shr_const_mod   , only: SHR_CONST_TKFRZ, SHR_CONST_PI
     use elm_varcon      , only: secspday
-    use pftvarcon       , only: nbrdlf_dcd_brl_tree, nbrdlf_dcd_brl_shrub, grperc, grpnow
+    use pftvarcon       , only: ndllf_dcd_brl_tree, nbrdlf_dcd_brl_shrub, grperc, grpnow
     !
     ! !ARGUMENTS:
     integer                  , intent(in)    :: num_soilp       ! number of soil patches in filter
@@ -1703,7 +1703,7 @@ contains
             bgtr(p) = 0._r8
             lgsf(p) = 0._r8
 
-            if ((ivt(p) .ne. nbrdlf_dcd_brl_shrub) .and. (ivt(p) .ne. nbrdlf_dcd_brl_tree)) then
+            if ((ivt(p) .ne. nbrdlf_dcd_brl_shrub) .and. (ivt(p) .ne. ndllf_dcd_brl_tree)) then
                bglfr_froot(p) = 0._r8
             end if
 
@@ -1740,7 +1740,7 @@ contains
                   prev_leafc_to_litter(p) = 0._r8
 
 #ifdef HUM_HOL
-                  if ((ivt(p) .ne. nbrdlf_dcd_brl_shrub) .and. (ivt(p) .ne. nbrdlf_dcd_brl_tree)) then
+                  if ((ivt(p) .ne. nbrdlf_dcd_brl_shrub) .and. (ivt(p) .ne. ndllf_dcd_brl_tree)) then
                      prev_frootc_to_litter(p) = 0._r8
                   end if
 #else
@@ -1794,7 +1794,7 @@ contains
                   end if
 
 #ifdef HUM_HOL
-                  if ((ivt(p) .ne. nbrdlf_dcd_brl_shrub) .and. (ivt(p) .ne. nbrdlf_dcd_brl_tree)) then
+                  if ((ivt(p) .ne. nbrdlf_dcd_brl_shrub) .and. (ivt(p) .ne. ndllf_dcd_brl_tree)) then
                      frootc_xfer_to_frootc(p) = 0.0_r8
                      frootn_xfer_to_frootn(p) = 0.0_r8
                      frootp_xfer_to_frootp(p) = 0.0_r8
@@ -1882,7 +1882,7 @@ contains
                !if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
                !   onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
 #ifdef HUM_HOL
-               if ( (ivt(p) == nbrdlf_dcd_brl_tree) .or. (ivt(p)== nbrdlf_dcd_brl_shrub) ) then
+               if ( (ivt(p) == ndllf_dcd_brl_tree) .or. (ivt(p)== nbrdlf_dcd_brl_shrub) ) then
                   !forcing
                   if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) > PhenolParamsInst%gdd_tbase(ivt(p)) .and. ws_flag == 1._r8) then
                      onset_gdd(p) = onset_gdd(p) + (t_ref2m(p) - PhenolParamsInst%gdd_tbase(ivt(p)))*fracday
@@ -1934,7 +1934,7 @@ contains
                   end if
 
 #ifdef HUM_HOL
-                  if ((ivt(p) .ne. nbrdlf_dcd_brl_shrub) .and. (ivt(p) .ne. nbrdlf_dcd_brl_tree)) then
+                  if ((ivt(p) .ne. nbrdlf_dcd_brl_shrub) .and. (ivt(p) .ne. ndllf_dcd_brl_tree)) then
                      frootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootc_storage(p)/dt
                      frootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootn_storage(p)/dt
                      frootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootp_storage(p)/dt
@@ -1979,7 +1979,7 @@ contains
                ! only begin to test for offset daylength once past the summer sol
 
 #ifdef HUM_HOL
-              if ((ivt(p) == nbrdlf_dcd_brl_tree) .or. (ivt(p) == nbrdlf_dcd_brl_shrub)) then
+              if ((ivt(p) == ndllf_dcd_brl_tree) .or. (ivt(p) == nbrdlf_dcd_brl_shrub)) then
                   if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%off_pstart(ivt(p)) .and. t_ref2m(p) < PhenolParamsInst%off_tbase(ivt(p))) then
                      dayl_temp(p) = dayl_temp(p) + ((PhenolParamsInst%off_tbase(ivt(p)) - t_ref2m(p))**2 * (dayl(g) / PhenolParamsInst%off_pstart(ivt(p)) )) * fracday
                   end if
@@ -2034,7 +2034,7 @@ contains
     use elm_varcon      , only: secspday, denh2o
     use elm_varpar      , only: nlevsoi
     use elm_time_manager, only: get_days_per_year, get_curr_date, timemgr_datediff
-    use pftvarcon       , only: nbrdlf_dcd_brl_tree, nbrdlf_dcd_brl_shrub, grperc, grpnow
+    use pftvarcon       , only: ndllf_dcd_brl_tree, nbrdlf_dcd_brl_shrub, grperc, grpnow
     !
     ! !ARGUMENTS:
     integer                  , intent(in)    :: num_soilp       ! number of soil patches in filter
@@ -2172,7 +2172,7 @@ contains
           g = veg_pp%gridcell(p)
 
 #ifdef HUM_HOL
-          if ((ivt(p) == nbrdlf_dcd_brl_tree) .or. (ivt(p) == nbrdlf_dcd_brl_shrub)) then
+          if ((ivt(p) == ndllf_dcd_brl_tree) .or. (ivt(p) == nbrdlf_dcd_brl_shrub)) then
             ! -------------------------------------------------------------
             ! Some preliminary stuff
             ! -------------------------------------------------------------
