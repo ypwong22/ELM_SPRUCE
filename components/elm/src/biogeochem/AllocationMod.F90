@@ -227,7 +227,7 @@ contains
     call ncd_io(varname=trim(tString),data=AllocParamsInst%compet_pft_sminp, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
-#endif HUM_HOL
+#endif
 
   end subroutine readCNAllocParams
 
@@ -946,7 +946,14 @@ contains
          ! dynamic nutrients limitation for SPRUCE vegetation
          ! calculate the root absorption capacity here
          plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_patch(p)))
+
+
          plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_p_patch(p)))
+
+         write (iulog, *) 'plant_ndemand', AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p), 'plant_pabsorb - 2', AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p)
+
+         write (iulog, *) 'plant_nabsorb - 2', AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p), 'plant_pabsorb - 2', AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p)
+
 #endif
       end do ! end pft loop
 
@@ -1992,6 +1999,9 @@ contains
          astem                        => cnstate_vars%astem_patch                            , & ! Output: [real(r8) (:)   ]  stem allocation coefficient
          fpg                          => cnstate_vars%fpg_col                                , & ! Output: [real(r8) (:)   ]  fraction of potential gpp (no units)
          !!! add phosphorus
+
+         fpi                          => cnstate_vars%fpi_col            , & ! Output: [real(r8) (:)   ]  fraction of potential immobilization (no units)
+
          leafcp                       => veg_vp%leafcp                                   , & ! Input:  [real(r8) (:)   ]  leaf C:P (gC/gP)
          frootcp                      => veg_vp%frootcp                                  , & ! Input:  [real(r8) (:)   ]  fine root C:P (gC/gP)
          livewdcp                     => veg_vp%livewdcp                                 , & ! Input:  [real(r8) (:)   ]  live wood (phloem and ray parenchyma) C:P (gC/gP)
@@ -2134,8 +2144,8 @@ contains
          prev_fpg_patch               => cnstate_vars%prev_fpg_patch          , & ! Input: [real(r8) (:)     ] previous step's N limitation
          prev_fpg_p_patch             => cnstate_vars%prev_fpg_p_patch        , & ! Input: [real(r8) (:)     ] previous step's P limitation
 
-         fpg_patch                    => cnstate_vars%fpg_patch               , & ! Input: [real(r8) (:)     ] previous step's N limitation
-         fpg_p_patch                  => cnstate_vars%fpg_p_patch             , & ! Input: [real(r8) (:)     ] previous step's P limitation
+         fpg_patch                    => cnstate_vars%fpg_patch               , & ! Output: [real(r8) (:)     ] N limitation
+         fpg_p_patch                  => cnstate_vars%fpg_p_patch             , & ! Output: [real(r8) (:)     ] P limitation
 
          plant_nabsorb                => veg_nf%plant_nabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up N (gN/m2/s)
          plant_pabsorb                => veg_pf%plant_pabsorb                   & ! Input: [real(r8) (:)     ] fine root's ability to take up P
@@ -2175,6 +2185,8 @@ contains
                   else
                      fpg_p_patch(p) = (plant_pabsorb(p) * fpg_p(c)) / plant_pdemand(p)
                   end if
+
+                  write (iulog, *) 'plant_nabsorb', plant_nabsorb(p), 'plant_pabsorb', plant_pabsorb(p)
 
                   !
                   plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + plant_ndemand(p) * fpg_patch(p) * veg_pp%wtcol(p)
@@ -2270,7 +2282,6 @@ contains
              ! turning off this correction (PET, 12/11/03), instead using bgtr in
              ! phenology algorithm.
 
-
              if (veg_vp%nstor(veg_pp%itype(p)) > 1e-6_r8) then
                !N pool modification
 
@@ -2298,6 +2309,9 @@ contains
                end if
                plant_nalloc(p) = (plant_ndemand(p) + retransn_to_npool(p)) / r
 
+               write (iulog, *) ivt(p), 'sminn_to_npool', sminn_to_npool(p), 'plant_ndemand', plant_ndemand(p), 'plant_ndemand/r', plant_ndemand(p) / r
+               call shr_sys_flush(iulog)
+
                if ( carbon_only  .or.  carbonnitrogen_only ) then
                  r = 1.0_r8
                else
@@ -2316,7 +2330,14 @@ contains
 
                plant_nalloc(p) = sminn_to_npool(p) + retransn_to_npool(p)
                plant_palloc(p) = sminp_to_ppool(p) + retransp_to_ppool(p)
+
+               write (iulog, *) ivt(p), 'sminn_to_npool', sminn_to_npool(p), 'plant_ndemand', plant_ndemand(p)
+               call shr_sys_flush(iulog)
+
              end if
+
+            write (iulog, *) ivt(p), 'fpi', fpi(c), 'fpg', fpg(c), 'fpg_patch', fpg_patch(p)
+            call shr_sys_flush(iulog)
 
              ! calculate the associated carbon allocation, and the excess
              ! carbon flux that must be accounted for through downregulation

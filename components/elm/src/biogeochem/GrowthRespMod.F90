@@ -103,7 +103,6 @@ contains
 
         p = filter_soilp(fp)
          if (ivt(p) >= npcropmin) then ! skip 2 generic crops
-
             cpool_livestem_gr(p)          = cpool_to_livestemc(p) * grperc(ivt(p))
 
             cpool_livestem_storage_gr(p)  = cpool_to_livestemc_storage(p) * &
