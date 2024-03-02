@@ -522,12 +522,12 @@ contains
     this%fpg_patch(begp:endp) = spval
     call hist_addfld1d (fname='FPG_PATCH', units='proportion', &
          avgflag='A', long_name='pft-level fraction of potential gpp due to N limitation', &
-         ptr_col=this%fpg_patch)
+         ptr_patch=this%fpg_patch)
 
     this%prev_fpg_patch(begp:endp) = spval
     call hist_addfld1d (fname='PREV_FPG_PATCH', units='proportion', &
          avgflag='A', long_name='previous time step pft-level fraction of potential gpp due to N limitation', &
-         ptr_col=this%prev_fpg_patch)
+         ptr_patch=this%prev_fpg_patch)
 
     this%fpg_p_col(begc:endc) = spval
     call hist_addfld1d (fname='FPG_P', units='proportion', &
@@ -537,12 +537,12 @@ contains
     this%fpg_p_patch(begp:endp) = spval
     call hist_addfld1d (fname='FPG_P_PATCH', units='proportion', &
          avgflag='A', long_name='pft-level fraction of potential gpp due to P limitation', &
-         ptr_col=this%fpg_p_patch)
+         ptr_patch=this%fpg_p_patch)
 
     this%prev_fpg_p_patch(begp:endp) = spval
     call hist_addfld1d (fname='PREV_FPG_P_PATCH', units='proportion', &
          avgflag='A', long_name='previous time step pft-level fraction of potential gpp due to P limitation', &
-         ptr_col=this%prev_fpg_p_patch)
+         ptr_patch=this%prev_fpg_p_patch)
 
     this%annsum_counter_col(begc:endc) = spval
     call hist_addfld1d (fname='ANNSUM_COUNTER', units='s', &

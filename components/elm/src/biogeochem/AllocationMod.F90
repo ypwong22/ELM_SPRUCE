@@ -575,7 +575,7 @@ contains
          plant_pabsorb                => veg_pf%plant_pabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up P
 
          sminn                        => col_ns%sminn                         , & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral N
-         sminp                        => col_ns%sminp                           & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral N
+         sminp                        => col_ps%sminp                           & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral P
 #endif
          )
 
