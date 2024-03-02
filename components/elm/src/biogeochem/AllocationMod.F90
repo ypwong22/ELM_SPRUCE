@@ -572,7 +572,10 @@ contains
          prev_fpg_p_patch             => cnstate_vars%prev_fpg_p_patch        , & ! Input: [real(r8) (:)     ] previous step's P limitation
 
          plant_nabsorb                => veg_nf%plant_nabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up N (gN/m2/s)
-         plant_pabsorb                => veg_pf%plant_pabsorb                   & ! Input: [real(r8) (:)     ] fine root's ability to take up P
+         plant_pabsorb                => veg_pf%plant_pabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up P
+
+         sminn                        => col_ns%sminn                         , & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral N
+         sminp                        => col_ns%sminp                           & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral N
 #endif
          )
 
@@ -947,12 +950,11 @@ contains
          ! calculate the root absorption capacity here
          plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_patch(p)))
 
-
          plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_p_patch(p)))
 
-         write (iulog, *) 'plant_ndemand', AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p), 'plant_pabsorb - 2', AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p)
+         write (iulog, *) ivt(p), 'plant_ndemand', plant_ndemand(p), 'plant_nabsorb-2', AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p)
 
-         write (iulog, *) 'plant_nabsorb - 2', AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p), 'plant_pabsorb - 2', AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p)
+         write (iulog, *) ivt(p), 'plant_pdemand', plant_pdemand(p), 'plant_nabsorb-2', AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p)
 
 #endif
       end do ! end pft loop
@@ -2172,21 +2174,21 @@ contains
                   ! calculate the PFT-level limitation factor here
                   if (plant_ndemand(p) == 0._r8) then
                      fpg_patch(p) = 1._r8
-                  else if (plant_ndemand(p) < (plant_nabsorb(p) * fpg(c))) then
-                     fpg_patch(p) = 1._r8
+                  ! try oversupplying nitrogen? 
+                  !else if (plant_ndemand(p) < (plant_nabsorb(p) * fpg(c))) then
+                  !   fpg_patch(p) = 1._r8
                   else
                      fpg_patch(p) = (plant_nabsorb(p) * fpg(c)) / plant_ndemand(p)
                   end if
 
                   if (plant_pdemand(p) == 0._r8) then
                      fpg_p_patch(p) = 1._r8
-                  else if (plant_pdemand(p) < (plant_pabsorb(p) * fpg_p(c))) then
-                     fpg_p_patch(p) = 1._r8
+                  ! try oversupplying nitrogen? 
+                  !else if (plant_pdemand(p) < (plant_pabsorb(p) * fpg_p(c))) then
+                  !   fpg_p_patch(p) = 1._r8
                   else
                      fpg_p_patch(p) = (plant_pabsorb(p) * fpg_p(c)) / plant_pdemand(p)
                   end if
-
-                  write (iulog, *) 'plant_nabsorb', plant_nabsorb(p), 'plant_pabsorb', plant_pabsorb(p)
 
                   !
                   plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + plant_ndemand(p) * fpg_patch(p) * veg_pp%wtcol(p)

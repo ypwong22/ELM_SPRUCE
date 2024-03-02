@@ -1619,12 +1619,12 @@ contains
          interpinic_flag='interp', readvar=readvar, data=this%fpg_col) 
 
     call restartvar(ncid=ncid, flag=flag, varname='fpg_patch', xtype=ncd_double,  &
-         dim1name='column', &
+         dim1name='pft', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%fpg_patch) 
 
     call restartvar(ncid=ncid, flag=flag, varname='prev_fpg_patch', xtype=ncd_double,  &
-         dim1name='column', &
+         dim1name='pft', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%prev_fpg_patch)
 
@@ -1634,12 +1634,12 @@ contains
          interpinic_flag='interp', readvar=readvar, data=this%fpg_p_col) 
 
     call restartvar(ncid=ncid, flag=flag, varname='fpg_p_patch', xtype=ncd_double,  &
-         dim1name='column', &
+         dim1name='pft', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%fpg_p_patch) 
 
     call restartvar(ncid=ncid, flag=flag, varname='prev_fpg_p_patch', xtype=ncd_double,  &
-         dim1name='column', &
+         dim1name='pft', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%prev_fpg_p_patch)
 
