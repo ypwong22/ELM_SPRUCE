@@ -113,6 +113,7 @@ contains
     ! !DESCRIPTION:
     !
     ! !USES:
+    use pftvarcon            , only: ndllf_dcd_brl_tree, nbrdlf_dcd_brl_shrub
     !
     ! !ARGUMENTS:
       !$acc routine seq
@@ -166,6 +167,7 @@ contains
          grain_mr       =>    veg_cf%grain_mr        , & ! Output: [real(r8) (:)   ]
          xr             =>    veg_cf%xr              , & ! Output: [real(r8) (:)   ]  (gC/m2) respiration of excess C
          totvegc        =>    veg_cs%totvegc         , &
+         leafc          =>    veg_cs%leafc           , &
 
          frootn         =>    veg_ns%frootn       , & ! Input:  [real(r8) (:)   ]  (gN/m2) fine root N
          livestemn      =>    veg_ns%livestemn    , & ! Input:  [real(r8) (:)   ]  (gN/m2) live stem N
@@ -273,7 +275,14 @@ contains
 #if (defined HUM_HOL)
             !recalculate pft-specific rates
             if (t_soisno(c,j) > dormant_mr_temp) then
-                tcsoi(c,j) = q10_mr_pft(ivt(p))**((t_soisno(c,j)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
+               tcsoi(c,j) = q10_mr_pft(ivt(p))**((t_soisno(c,j)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
+
+               ! But 5% MR when leaf is zero
+               if ((ivt(p) == ndllf_dcd_brl_tree) .or. (ivt(p) == nbrdlf_dcd_brl_shrub)) then
+                  if (leafc(p) < 1e-7) then
+                     tcsoi(c,j) = 0.05_r8
+                  end if
+               end if
             else
                 tcsoi(c,j) = dormant_mr_factor
             end if

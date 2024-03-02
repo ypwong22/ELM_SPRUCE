@@ -452,6 +452,7 @@ contains
     real(r8):: cpl,cpfr,cplw,cpdw,cpg                                    !C:N ratios for leaf, fine root, and wood
     real(r8):: puptake_prof(bounds%begc:bounds%endc, 1:nlevdecomp)
 
+    real(r8):: dayspyr
 
   !-----------------------------------------------------------------------
 
@@ -568,6 +569,10 @@ contains
 
          ! PFT-specific nutrients limitation
 #ifdef HUM_HOL
+         annavg_agnpp                 => veg_cf%annavg_agnpp                  , & ! Input:  [real(r8) (:)   ]  annual average NPP
+
+         annavg_bgnpp                 => veg_cf%annavg_bgnpp                  , & ! Input:  [real(r8) (:)   ]  annual average belowground NPP
+
          prev_fpg_patch               => cnstate_vars%prev_fpg_patch          , & ! Input: [real(r8) (:)     ] previous step's N limitation
          prev_fpg_p_patch             => cnstate_vars%prev_fpg_p_patch        , & ! Input: [real(r8) (:)     ] previous step's P limitation
 
@@ -948,13 +953,18 @@ contains
 #ifdef HUM_HOL
          ! dynamic nutrients limitation for SPRUCE vegetation
          ! calculate the root absorption capacity here
-         plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_patch(p)))
+         
+         !plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_patch(p)))
 
-         plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_p_patch(p)))
+         !plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_p_patch(p)))
 
-         write (iulog, *) ivt(p), 'plant_ndemand', plant_ndemand(p), 'plant_nabsorb-2', AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p)
+         !write (iulog, *) ivt(p), 'plant_ndemand', plant_ndemand(p), 'plant_nabsorb-2', AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p)
 
-         write (iulog, *) ivt(p), 'plant_pdemand', plant_pdemand(p), 'plant_nabsorb-2', AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p)
+         !write (iulog, *) ivt(p), 'plant_pdemand', plant_pdemand(p), 'plant_nabsorb-2', AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p)
+
+         plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday * 0.5_r8 / frootcn(ivt(p)) * AllocParamsInst%compet_pft_sminn(ivt(p))
+
+         plant_pabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday * 0.5_r8 / frootcp(ivt(p)) * AllocParamsInst%compet_pft_sminp(ivt(p))
 
 #endif
       end do ! end pft loop
@@ -2172,7 +2182,7 @@ contains
 
 #ifdef HUM_HOL
                   ! calculate the PFT-level limitation factor here
-                  if (plant_ndemand(p) == 0._r8) then
+                  if (plant_ndemand(p) < 1e-6_r8) then
                      fpg_patch(p) = 1._r8
                   ! try oversupplying nitrogen? 
                   !else if (plant_ndemand(p) < (plant_nabsorb(p) * fpg(c))) then
@@ -2181,7 +2191,7 @@ contains
                      fpg_patch(p) = (plant_nabsorb(p) * fpg(c)) / plant_ndemand(p)
                   end if
 
-                  if (plant_pdemand(p) == 0._r8) then
+                  if (plant_pdemand(p) < 1e-6_r8) then
                      fpg_p_patch(p) = 1._r8
                   ! try oversupplying nitrogen? 
                   !else if (plant_pdemand(p) < (plant_pabsorb(p) * fpg_p(c))) then
@@ -2311,8 +2321,8 @@ contains
                end if
                plant_nalloc(p) = (plant_ndemand(p) + retransn_to_npool(p)) / r
 
-               write (iulog, *) ivt(p), 'sminn_to_npool', sminn_to_npool(p), 'plant_ndemand', plant_ndemand(p), 'plant_ndemand/r', plant_ndemand(p) / r
-               call shr_sys_flush(iulog)
+               !write (iulog, *) ivt(p), 'sminn_to_npool', sminn_to_npool(p), 'plant_ndemand', plant_ndemand(p), 'plant_ndemand/r', plant_ndemand(p) / r
+               !call shr_sys_flush(iulog)
 
                if ( carbon_only  .or.  carbonnitrogen_only ) then
                  r = 1.0_r8
@@ -2333,13 +2343,13 @@ contains
                plant_nalloc(p) = sminn_to_npool(p) + retransn_to_npool(p)
                plant_palloc(p) = sminp_to_ppool(p) + retransp_to_ppool(p)
 
-               write (iulog, *) ivt(p), 'sminn_to_npool', sminn_to_npool(p), 'plant_ndemand', plant_ndemand(p)
-               call shr_sys_flush(iulog)
+               !write (iulog, *) ivt(p), 'sminn_to_npool', sminn_to_npool(p), 'plant_ndemand', plant_ndemand(p)
+               !call shr_sys_flush(iulog)
 
              end if
 
-            write (iulog, *) ivt(p), 'fpi', fpi(c), 'fpg', fpg(c), 'fpg_patch', fpg_patch(p)
-            call shr_sys_flush(iulog)
+            !write (iulog, *) ivt(p), 'fpi', fpi(c), 'fpg', fpg(c), 'fpg_patch', fpg_patch(p)
+            !call shr_sys_flush(iulog)
 
              ! calculate the associated carbon allocation, and the excess
              ! carbon flux that must be accounted for through downregulation
