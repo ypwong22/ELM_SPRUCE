@@ -291,7 +291,7 @@ contains
             froot_mr(p) = froot_mr(p) + frootn(p)*br_mr*tcsoi(c,j)*rootfr(p,j)
          end do
       end do
-      
+
     end associate
 
   end subroutine MaintenanceResp

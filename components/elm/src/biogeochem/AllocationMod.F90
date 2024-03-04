@@ -42,7 +42,7 @@ module AllocationMod
   use elm_varctl      , only : carbonnitrogen_only  
   use elm_varctl      , only : carbonphosphorus_only
   use shr_infnan_mod  , only: nan => shr_infnan_nan, assignment(=)
-  
+  use pftvarcon       , only: nc3_arctic_grass ! control for moss uptake in SPRUCE runs
   !
   implicit none
   save
@@ -962,9 +962,14 @@ contains
 
          !write (iulog, *) ivt(p), 'plant_pdemand', plant_pdemand(p), 'plant_nabsorb-2', AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p)
 
-         plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday * 0.5_r8 / frootcn(ivt(p)) * AllocParamsInst%compet_pft_sminn(ivt(p))
+         if (ivt(p) /= nc3_arctic_grass) then
+            plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcn(ivt(p)) * AllocParamsInst%compet_pft_sminn(ivt(p)) * (1 - exp(-prev_fpg_patch(p)))
 
-         plant_pabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday * 0.5_r8 / frootcp(ivt(p)) * AllocParamsInst%compet_pft_sminp(ivt(p))
+            plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcp(ivt(p)) * AllocParamsInst%compet_pft_sminp(ivt(p)) * (1 - exp(-prev_fpg_p_patch(p)))
+         else
+            plant_nabsorb(p) = plant_ndemand(p)
+            plant_pabsorb(p) = plant_pdemand(p)
+         end if
 
 #endif
       end do ! end pft loop
