@@ -25,6 +25,8 @@ module MaintenanceRespMod
   use ColumnDataType      , only : col_es
   use VegetationType      , only : veg_pp
   use VegetationDataType  , only : veg_es, veg_cs, veg_cf, veg_ns
+  use CNStateType         , only : cnstate_type
+  use pftvarcon           , only: nc3_arctic_grass ! control for moss MR in SPRUCE runs
   !
   implicit none
   save
@@ -108,7 +110,7 @@ contains
   !
   subroutine MaintenanceResp(bounds, &
        num_soilc, filter_soilc, num_soilp, filter_soilp, &
-       canopystate_vars, soilstate_vars, photosyns_vars)
+       canopystate_vars, soilstate_vars, photosyns_vars, cnstate_vars)
     !
     ! !DESCRIPTION:
     !
@@ -125,6 +127,7 @@ contains
     type(canopystate_type)   , intent(in)    :: canopystate_vars
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     type(photosyns_type)     , intent(in)    :: photosyns_vars
+    type(cnstate_type)       , intent(in)    :: cnstate_vars
     !
     ! !LOCAL VARIABLES:
     integer :: c,p,j ! indices
@@ -160,6 +163,10 @@ contains
 
          cpool          =>    veg_cs%cpool          , & ! Input: [real(r8) (:)   ]   plant carbon pool (gC m-2)
 
+#ifdef HUM_HOL
+         dormant_flag_root  => cnstate_vars%dormant_flag_root_patch  , & ! Output: [real(r8)  (:)   ]  dormancy flag
+#endif
+
          leaf_mr        =>    veg_cf%leaf_mr         , & ! Output: [real(r8) (:)   ]
          froot_mr       =>    veg_cf%froot_mr        , & ! Output: [real(r8) (:)   ]
          livestem_mr    =>    veg_cf%livestem_mr     , & ! Output: [real(r8) (:)   ]
@@ -172,7 +179,8 @@ contains
          frootn         =>    veg_ns%frootn       , & ! Input:  [real(r8) (:)   ]  (gN/m2) fine root N
          livestemn      =>    veg_ns%livestemn    , & ! Input:  [real(r8) (:)   ]  (gN/m2) live stem N
          livecrootn     =>    veg_ns%livecrootn   , & ! Input:  [real(r8) (:)   ]  (gN/m2) live coarse root N
-         grainn         =>    veg_ns%grainn         & ! Output: [real(r8) (:)   ]  (kgN/m2) grain N
+         grainn         =>    veg_ns%grainn       & ! Output: [real(r8) (:)   ]  (kgN/m2) grain N
+
          )
 
       ! base rate for maintenance respiration is from:
@@ -277,11 +285,9 @@ contains
             if (t_soisno(c,j) > dormant_mr_temp) then
                tcsoi(c,j) = q10_mr_pft(ivt(p))**((t_soisno(c,j) - SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
 
-               ! But 5% MR when leaf is zero
-               if ((ivt(p) == ndllf_dcd_brl_tree) .or. (ivt(p) == nbrdlf_dcd_brl_shrub)) then
-                  if (leafc(p) < 1e-7) then
-                     tcsoi(c,j) = 0.05_r8
-                  end if
+               ! But 1% MR during dormancy
+               if ((dormant_flag_root(p) == 1._r8) .and. (ivt(p) /= nc3_arctic_grass)) then
+                  tcsoi(c,j) = 0.01_r8
                end if
             else
                 tcsoi(c,j) = dormant_mr_factor

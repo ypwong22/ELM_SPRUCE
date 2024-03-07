@@ -164,7 +164,7 @@ module CNEcosystemDynBetrMod
           call c14_col_cf%SetValues(num_soilc, filter_soilc, 0._r8)
           call c14_veg_cf%SetValues(num_soilp, filter_soilp, 0._r8)
        end if
-       
+
        call col_nf%SetValues (num_soilc, filter_soilc, 0._r8)
        call veg_nf%SetValues (num_soilp, filter_soilp, 0._r8)
 
@@ -189,7 +189,7 @@ module CNEcosystemDynBetrMod
 
        end if
        call MaintenanceResp(bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
-            canopystate_vars, soilstate_vars, photosyns_vars )
+            canopystate_vars, soilstate_vars, photosyns_vars, cnstate_vars )
        call t_stopf('MaintenanceResp')
 
        ! for P competition purpose, calculate P fluxes that will potentially increase solution P pool

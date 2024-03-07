@@ -5001,38 +5001,45 @@ contains
          if (bglfr_leaf(p) > 0._r8) then
             ! units for bglfr are already 1/s
             leafc_to_litter(p)  = bglfr_leaf(p) * leafc(p)
-            frootc_to_litter(p) = bglfr_froot(p) * frootc(p)
 
             if ( nu_com .eq. 'RD') then
                ! calculate the leaf N litterfall and retranslocation
                leafn_to_litter(p)   = leafc_to_litter(p)  / lflitcn(ivt(p))
                leafn_to_retransn(p) = (leafc_to_litter(p) / leafcn(ivt(p))) - leafn_to_litter(p)
 
-               ! calculate fine root N litterfall (no retranslocation of fine root N)
-               frootn_to_litter(p) = frootc_to_litter(p) / frootcn(ivt(p))
-
                ! calculate the leaf P litterfall and retranslocation
                leafp_to_litter(p)   = leafc_to_litter(p)  / lflitcp(ivt(p))
                leafp_to_retransp(p) = (leafc_to_litter(p) / leafcp(ivt(p))) - leafp_to_litter(p)
-
-               ! calculate fine root P litterfall (no retranslocation of fine root P)
-               frootp_to_litter(p) = frootc_to_litter(p) / frootcp(ivt(p))
             else
                ! calculate the leaf N litterfall and retranslocation
                leafn_to_litter(p)   = bglfr_leaf(p) * leafn(p) * 0.38_r8 ! 62% N resorption rate; LEONARDUS VERGUTZ 2012 Ecological Monographs 82(2) 205-220.
                leafn_to_retransn(p) = bglfr_leaf(p) * leafn(p) - leafn_to_litter(p)
 
-               ! calculate fine root N litterfall (no retranslocation of fine root N)
-               frootn_to_litter(p) = bglfr_froot(p) * frootn(p)
-
                ! calculate the leaf P litterfall and retranslocation
                leafp_to_litter(p)   = bglfr_leaf(p) * leafp(p) * 0.35_r8 ! 65% P resorption rate; LEONARDUS VERGUTZ 2012 Ecological Monographs 82(2) 205-220.
                leafp_to_retransp(p) = bglfr_leaf(p) * leafp(p) - leafp_to_litter(p)
+            end if
+         end if
+
+         if (bglfr_froot(p) > 0._r8) then
+            ! units for bglfr are already 1/s
+            frootc_to_litter(p) = bglfr_froot(p) * frootc(p)
+
+            if ( nu_com .eq. 'RD') then
+               ! calculate fine root N litterfall (no retranslocation of fine root N)
+               frootn_to_litter(p) = frootc_to_litter(p) / frootcn(ivt(p))
+
+               ! calculate fine root P litterfall (no retranslocation of fine root P)
+               frootp_to_litter(p) = frootc_to_litter(p) / frootcp(ivt(p))
+            else
+               ! calculate fine root N litterfall (no retranslocation of fine root N)
+               frootn_to_litter(p) = bglfr_froot(p) * frootn(p)
 
                ! calculate fine root P litterfall (no retranslocation of fine root P)
                frootp_to_litter(p) = bglfr_froot(p) * frootp(p) ! fine root P retranslocation occur (but not N retranslocation), why not include it here
             end if
          end if
+
       end do
 
     end associate

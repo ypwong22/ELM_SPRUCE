@@ -986,14 +986,6 @@ contains
 #ifdef HUM_HOL
          ! dynamic nutrients limitation for SPRUCE vegetation but do not touch moss
          ! calculate the root absorption capacity here
-         
-         !plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_patch(p)))
-
-         !plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_p_patch(p)))
-
-         !write (iulog, *) ivt(p), 'plant_ndemand', plant_ndemand(p), 'plant_nabsorb-2', AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p)
-
-         !write (iulog, *) ivt(p), 'plant_pdemand', plant_pdemand(p), 'plant_nabsorb-2', AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p)
 
          if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
 
@@ -1017,10 +1009,8 @@ contains
                (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))
 
             ! weighted average with the demand-pull part
-            ! plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + plant_nabsorb(p) * (1 - exp(-prev_fpg_patch(p)))
-            plant_nabsorb(p) = plant_ndemand(p) * 0.5_r8 + plant_nabsorb(p) * 0.5_r8
-            ! plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + plant_pabsorb(p) * (1 - exp(-prev_fpg_p_patch(p)))
-            plant_pabsorb(p) = plant_pdemand(p) * 0.5_r8 + plant_pabsorb(p) * 0.5_r8
+            plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + plant_nabsorb(p) * (1 - exp(-prev_fpg_patch(p)))
+            plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + plant_pabsorb(p) * (1 - exp(-prev_fpg_p_patch(p)))
 
          else
             plant_nabsorb(p) = plant_ndemand(p)
@@ -2379,7 +2369,7 @@ contains
                if (.not. carbon_only  .and. .not.  carbonphosphorus_only  &
                      .and. .not.  carbonnitrogen_only  ) then
                    !sminn_to_npool(p) = plant_ndemand(p) * fpg(c)   / max((npool(p) / rc), 1.0_r8)  !limit uptake when pool is large
-                   !sminp_to_ppool(p) = plant_pdemand(p) * fpg_p(c) / max((ppool(p) / rc_p), 1.0_r8)  !limit uptake when pool is large
+                   !sminp_to_ppool(p) = plant_pdemand(p) * fpg_p(c) / max((ppool(p) / rc_p), 1.M0_r8)  !limit uptake when pool is large
                end if
                if ( carbon_only  .or.  carbonphosphorus_only ) then
                  r = 1.0_r8
