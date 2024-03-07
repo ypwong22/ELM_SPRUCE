@@ -275,7 +275,7 @@ contains
 #if (defined HUM_HOL)
             !recalculate pft-specific rates
             if (t_soisno(c,j) > dormant_mr_temp) then
-               tcsoi(c,j) = q10_mr_pft(ivt(p))**((t_soisno(c,j)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
+               tcsoi(c,j) = q10_mr_pft(ivt(p))**((t_soisno(c,j) - SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
 
                ! But 5% MR when leaf is zero
                if ((ivt(p) == ndllf_dcd_brl_tree) .or. (ivt(p) == nbrdlf_dcd_brl_shrub)) then

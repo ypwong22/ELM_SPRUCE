@@ -26,7 +26,7 @@ module AllocationMod
   use ColumnType          , only : col_pp
   use ColumnDataType      , only : col_ws
   use ColumnDataType      , only : col_cf, c13_col_cf, c14_col_cf
-  use ColumnDataType      , only : col_ns, col_nf, col_ps, col_pf
+  use ColumnDataType      , only : col_es, col_ns, col_nf, col_ps, col_pf
   use VegetationType      , only : veg_pp
   use VegetationDataType  , only : veg_cs, veg_ns, veg_nf, veg_ps, veg_pf
   use VegetationDataType  , only : veg_cf, c13_veg_cf, c14_veg_cf
@@ -77,6 +77,12 @@ module AllocationMod
 #ifdef HUM_HOL
      real(r8), pointer :: compet_pft_sminn(:) => null() ! (gN/gC) the tangent value of nitrogen uptake per unit fine root biomass if the N-limitation factor (fpi_pft) is infinity
      real(r8), pointer :: compet_pft_sminp(:) => null() ! (gP/gC) the tangent value of phosphorus uptake per unit fine root biomass if the N-limitation factor (fpi_pft) is infinity
+
+     real(r8), pointer :: q10_uptake          => null() ! (unitless) Q10 base constant for temperature sensitivity of uptake
+     real(r8), pointer :: tbase_uptake        => null() ! (K) base temperature for Q10 temperature sensitivity of uptake
+     real(r8), pointer :: scale_uptake(:)     => null() ! (unitless) scale factors for Q10 temperature sensitivity of uptake
+     real(r8), pointer :: kmin_nuptake(:)     => null() ! (gN m-2) half saturation point for N uptake in Michaelis-Menten
+     real(r8), pointer :: kmin_puptake(:)     => null() ! (gP m-2) half saturation point for P uptake in Michaelis-Menten
 #endif
 
   end type AllocParamsType
@@ -218,6 +224,11 @@ contains
 
     allocate(AllocParamsInst%compet_pft_sminn(0:npft))
     allocate(AllocParamsInst%compet_pft_sminp(0:npft))
+    allocate(AllocParamsInst%q10_uptake)
+    allocate(AllocParamsInst%tbase_uptake)
+    allocate(AllocParamsInst%scale_uptake(0:npft))
+    allocate(AllocParamsInst%kmin_nuptake(0:npft))
+    allocate(AllocParamsInst%kmin_puptake(0:npft))
 
     tString='compet_pft_sminn'
     call ncd_io(varname=trim(tString),data=AllocParamsInst%compet_pft_sminn, flag='read', ncid=ncid, readvar=readv)
@@ -225,6 +236,26 @@ contains
 
     tString='compet_pft_sminp'
     call ncd_io(varname=trim(tString),data=AllocParamsInst%compet_pft_sminp, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='q10_uptake'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%q10_uptake, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='tbase_uptake'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%tbase_uptake, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='scale_uptake'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%scale_uptake, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='kmin_nuptake'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%kmin_nuptake, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='kmin_puptake'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%kmin_puptake, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
 #endif
@@ -579,8 +610,10 @@ contains
          plant_nabsorb                => veg_nf%plant_nabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up N (gN/m2/s)
          plant_pabsorb                => veg_pf%plant_pabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up P
 
-         sminn                        => col_ns%sminn                         , & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral N
-         sminp                        => col_ps%sminp                           & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral P
+         sminn                        => col_ns%sminn                         , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral N
+         sminp                        => col_ps%sminp                         , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral P
+
+         t_soisno                     => col_es%t_soisno                        & ! Input: [real (r8) (:,:) ] (K) soil temperature
 #endif
          )
 
@@ -951,7 +984,7 @@ contains
          plant_pdemand(p) = plant_pdemand(p) - retransp_to_ppool(p)
 
 #ifdef HUM_HOL
-         ! dynamic nutrients limitation for SPRUCE vegetation
+         ! dynamic nutrients limitation for SPRUCE vegetation but do not touch moss
          ! calculate the root absorption capacity here
          
          !plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + AllocParamsInst%compet_pft_sminn(ivt(p)) * frootc(p) * (1 - exp(-prev_fpg_patch(p)))
@@ -962,10 +995,33 @@ contains
 
          !write (iulog, *) ivt(p), 'plant_pdemand', plant_pdemand(p), 'plant_nabsorb-2', AllocParamsInst%compet_pft_sminp(ivt(p)) * frootc(p)
 
-         if (ivt(p) /= nc3_arctic_grass) then
-            plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcn(ivt(p)) * AllocParamsInst%compet_pft_sminn(ivt(p)) * (1 - exp(-prev_fpg_patch(p)))
+         if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
 
-            plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcp(ivt(p)) * AllocParamsInst%compet_pft_sminp(ivt(p)) * (1 - exp(-prev_fpg_p_patch(p)))
+            ! The supply-drive part: proportional to fine root biomass
+            plant_nabsorb(p) = (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcn(ivt(p)) * AllocParamsInst%compet_pft_sminn(ivt(p))
+            plant_pabsorb(p) = (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcp(ivt(p)) * AllocParamsInst%compet_pft_sminp(ivt(p))
+
+            ! further scale by Q10
+            c = veg_pp%column(p)
+            plant_nabsorb(p) = plant_nabsorb(p) * (AllocParamsInst%q10_uptake ** &
+               ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / & 
+                 AllocParamsInst%scale_uptake(ivt(p))))
+            plant_pabsorb(p) = plant_pabsorb(p) * (AllocParamsInst%q10_uptake ** &
+               ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / & 
+                 AllocParamsInst%scale_uptake(ivt(p))))
+
+            ! further scale by Michaelis-Menten
+            plant_nabsorb(p) = plant_nabsorb(p) * sminn(c) / &
+               (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c))
+            plant_pabsorb(p) = plant_pabsorb(p) * sminp(c) / &
+               (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))
+
+            ! weighted average with the demand-pull part
+            ! plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + plant_nabsorb(p) * (1 - exp(-prev_fpg_patch(p)))
+            plant_nabsorb(p) = plant_ndemand(p) * 0.5_r8 + plant_nabsorb(p) * 0.5_r8
+            ! plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + plant_pabsorb(p) * (1 - exp(-prev_fpg_p_patch(p)))
+            plant_pabsorb(p) = plant_pdemand(p) * 0.5_r8 + plant_pabsorb(p) * 0.5_r8
+
          else
             plant_nabsorb(p) = plant_ndemand(p)
             plant_pabsorb(p) = plant_pdemand(p)
@@ -2186,23 +2242,29 @@ contains
                if (veg_pp%active(p) .and. (veg_pp%itype(p) .ne. noveg)) then
 
 #ifdef HUM_HOL
-                  ! calculate the PFT-level limitation factor here
-                  if (plant_ndemand(p) < 1e-6_r8) then
-                     fpg_patch(p) = 1._r8
-                  ! try oversupplying nitrogen? 
-                  !else if (plant_ndemand(p) < (plant_nabsorb(p) * fpg(c))) then
-                  !   fpg_patch(p) = 1._r8
-                  else
-                     fpg_patch(p) = (plant_nabsorb(p) * fpg(c)) / plant_ndemand(p)
-                  end if
+                  if (.not. carbon_only) then
+                     ! calculate the PFT-level limitation factor here
+                     if (plant_ndemand(p) < 1e-6_r8) then
+                        fpg_patch(p) = 1._r8
+                     ! try oversupplying nitrogen? 
+                     !else if (plant_ndemand(p) < (plant_nabsorb(p) * fpg(c))) then
+                     !   fpg_patch(p) = 1._r8
+                     else
+                        fpg_patch(p) = (plant_nabsorb(p) * fpg(c)) / plant_ndemand(p)
+                     end if
 
-                  if (plant_pdemand(p) < 1e-6_r8) then
-                     fpg_p_patch(p) = 1._r8
-                  ! try oversupplying nitrogen? 
-                  !else if (plant_pdemand(p) < (plant_pabsorb(p) * fpg_p(c))) then
-                  !   fpg_p_patch(p) = 1._r8
+                     if (plant_pdemand(p) < 1e-6_r8) then
+                        fpg_p_patch(p) = 1._r8
+                     ! try oversupplying nitrogen? 
+                     !else if (plant_pdemand(p) < (plant_pabsorb(p) * fpg_p(c))) then
+                     !   fpg_p_patch(p) = 1._r8
+                     else
+                        fpg_p_patch(p) = (plant_pabsorb(p) * fpg_p(c)) / plant_pdemand(p)
+                     end if
+
                   else
-                     fpg_p_patch(p) = (plant_pabsorb(p) * fpg_p(c)) / plant_pdemand(p)
+                     fpg_patch(p) = fpg(c)
+                     fpg_p_patch(p) = fpg_p(c)
                   end if
 
                   !
