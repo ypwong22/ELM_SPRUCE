@@ -613,7 +613,7 @@ contains
          sminn                        => col_ns%sminn                         , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral N
          sminp                        => col_ps%sminp                         , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral P
 
-         t_soisno                     => col_es%t_soisno                        & ! Input: [real (r8) (:,:) ] (K) soil temperature
+         t_soisno                     => col_es%t_soisno                      & ! Input: [real (r8) (:,:) ] (K) soil temperature
 #endif
          )
 
@@ -2203,6 +2203,8 @@ contains
          supplement_to_plantn         => veg_nf%supplement_to_plantn            , &
          supplement_to_plantp         => veg_pf%supplement_to_plantp            , &
 
+         fcur_dyn                     => cnstate_vars%fcur_dyn_patch            , & ! Output: [real(r8)  (:)   ] fraction of allocation that goes to currently displayed growth, remainder to storage, dynamic, applied on fine root
+ 
 #ifdef HUM_HOL
          prev_fpg_patch               => cnstate_vars%prev_fpg_patch          , & ! Input: [real(r8) (:)     ] previous step's N limitation
          prev_fpg_p_patch             => cnstate_vars%prev_fpg_p_patch        , & ! Input: [real(r8) (:)     ] previous step's P limitation
@@ -2789,17 +2791,17 @@ contains
 
          cpool_to_leafc(p)          = nlc * fcur
          cpool_to_leafc_storage(p)  = nlc * (1._r8 - fcur)
-         cpool_to_frootc(p)         = nlc * f1 * fcur
-         cpool_to_frootc_storage(p) = nlc * f1 * (1._r8 - fcur)
+         cpool_to_frootc(p)         = nlc * f1 * fcur_dyn(p) ! the dynamic factor is equal to fcur unless root phenology is active 
+         cpool_to_frootc_storage(p) = nlc * f1 * (1._r8 - fcur_dyn(p))
          if (woody(ivt(p)) >= 1._r8) then
             cpool_to_livestemc(p)          = nlc * f3 * f4 * fcur
             cpool_to_livestemc_storage(p)  = nlc * f3 * f4 * (1._r8 - fcur)
             cpool_to_deadstemc(p)          = nlc * f3 * (1._r8 - f4) * fcur
             cpool_to_deadstemc_storage(p)  = nlc * f3 * (1._r8 - f4) * (1._r8 - fcur)
-            cpool_to_livecrootc(p)         = nlc * f2 * f3 * f4 * fcur
-            cpool_to_livecrootc_storage(p) = nlc * f2 * f3 * f4 * (1._r8 - fcur)
-            cpool_to_deadcrootc(p)         = nlc * f2 * f3 * (1._r8 - f4) * fcur
-            cpool_to_deadcrootc_storage(p) = nlc * f2 * f3 * (1._r8 - f4) * (1._r8 - fcur)
+            cpool_to_livecrootc(p)         = nlc * f2 * f3 * f4 * fcur_dyn(p)
+            cpool_to_livecrootc_storage(p) = nlc * f2 * f3 * f4 * (1._r8 - fcur_dyn(p))
+            cpool_to_deadcrootc(p)         = nlc * f2 * f3 * (1._r8 - f4) * fcur_dyn(p)
+            cpool_to_deadcrootc_storage(p) = nlc * f2 * f3 * (1._r8 - f4) * (1._r8 - fcur_dyn(p))
          else
             ! Assume "stem" allocation in graminoids goes to rhizomes which are all live wood (B Sulman)
             cpool_to_livecrootc(p)         = nlc * f3 * fcur
@@ -2846,17 +2848,17 @@ contains
 
          npool_to_leafn(p)          = (nlc / cnl) * fcur
          npool_to_leafn_storage(p)  = (nlc / cnl) * (1._r8 - fcur)
-         npool_to_frootn(p)         = (nlc * f1 / cnfr) * fcur
-         npool_to_frootn_storage(p) = (nlc * f1 / cnfr) * (1._r8 - fcur)
+         npool_to_frootn(p)         = (nlc * f1 / cnfr) * fcur_dyn(p) ! equal to fcur unless separate root phenology is active
+         npool_to_frootn_storage(p) = (nlc * f1 / cnfr) * (1._r8 - fcur_dyn(p))
          if (woody(ivt(p)) >= 1._r8) then
             npool_to_livestemn(p)          = (nlc * f3 * f4 / cnlw) * fcur
             npool_to_livestemn_storage(p)  = (nlc * f3 * f4 / cnlw) * (1._r8 - fcur)
             npool_to_deadstemn(p)          = (nlc * f3 * (1._r8 - f4) / cndw) * fcur
             npool_to_deadstemn_storage(p)  = (nlc * f3 * (1._r8 - f4) / cndw) * (1._r8 - fcur)
-            npool_to_livecrootn(p)         = (nlc * f2 * f3 * f4 / cnlw) * fcur
-            npool_to_livecrootn_storage(p) = (nlc * f2 * f3 * f4 / cnlw) * (1._r8 - fcur)
-            npool_to_deadcrootn(p)         = (nlc * f2 * f3 * (1._r8 - f4) / cndw) * fcur
-            npool_to_deadcrootn_storage(p) = (nlc * f2 * f3 * (1._r8 - f4) / cndw) * (1._r8 - fcur)
+            npool_to_livecrootn(p)         = (nlc * f2 * f3 * f4 / cnlw) * fcur_dyn(p)
+            npool_to_livecrootn_storage(p) = (nlc * f2 * f3 * f4 / cnlw) * (1._r8 - fcur_dyn(p))
+            npool_to_deadcrootn(p)         = (nlc * f2 * f3 * (1._r8 - f4) / cndw) * fcur_dyn(p)
+            npool_to_deadcrootn_storage(p) = (nlc * f2 * f3 * (1._r8 - f4) / cndw) * (1._r8 - fcur_dyn(p))
          elseif (cnlw > 0.0_r8) then
             ! Assume "stem" allocation in graminoids goes to rhizomes which are all live wood (B Sulman)
             npool_to_livecrootn(p)         = (nlc * f3 / cnlw ) * fcur
@@ -2894,17 +2896,17 @@ contains
 
          ppool_to_leafp(p)          = (nlc / cpl) * fcur
          ppool_to_leafp_storage(p)  = (nlc / cpl) * (1._r8 - fcur)
-         ppool_to_frootp(p)         = (nlc * f1 / cpfr) * fcur
-         ppool_to_frootp_storage(p) = (nlc * f1 / cpfr) * (1._r8 - fcur)
+         ppool_to_frootp(p)         = (nlc * f1 / cpfr) * fcur_dyn(p) ! equal to fcur unless separate root phenology is active
+         ppool_to_frootp_storage(p) = (nlc * f1 / cpfr) * (1._r8 - fcur_dyn(p))
          if (woody(ivt(p)) >= 1._r8) then
             ppool_to_livestemp(p)          = (nlc * f3 * f4 / cplw) * fcur
             ppool_to_livestemp_storage(p)  = (nlc * f3 * f4 / cplw) * (1._r8 -fcur)
             ppool_to_deadstemp(p)          = (nlc * f3 * (1._r8 - f4) / cpdw) *fcur
             ppool_to_deadstemp_storage(p)  = (nlc * f3 * (1._r8 - f4) / cpdw) *(1._r8 - fcur)
-            ppool_to_livecrootp(p)         = (nlc * f2 * f3 * f4 / cplw) * fcur
-            ppool_to_livecrootp_storage(p) = (nlc * f2 * f3 * f4 / cplw) * (1._r8 -fcur)
-            ppool_to_deadcrootp(p)         = (nlc * f2 * f3 * (1._r8 - f4) / cpdw)* fcur
-            ppool_to_deadcrootp_storage(p) = (nlc * f2 * f3 * (1._r8 - f4) / cpdw)* (1._r8 - fcur)
+            ppool_to_livecrootp(p)         = (nlc * f2 * f3 * f4 / cplw) * fcur_dyn(p)
+            ppool_to_livecrootp_storage(p) = (nlc * f2 * f3 * f4 / cplw) * (1._r8 -fcur_dyn(p))
+            ppool_to_deadcrootp(p)         = (nlc * f2 * f3 * (1._r8 - f4) / cpdw)* fcur_dyn(p)
+            ppool_to_deadcrootp_storage(p) = (nlc * f2 * f3 * (1._r8 - f4) / cpdw)* (1._r8 - fcur_dyn(p))
          elseif (cplw > 0.0_r8) then
             ! Assume "stem" allocation in graminoids goes to rhizomes which are all live wood (B Sulman)
             ppool_to_livecrootp(p)         = (nlc * f3 / cplw ) * fcur

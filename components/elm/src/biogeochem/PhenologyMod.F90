@@ -1134,6 +1134,7 @@ contains
         dormant_flag_root                    => cnstate_vars%dormant_flag_root_patch   , & ! Output: [real(r8)  (:)   ]  dormancy flag
 
         fcur2                                => veg_vp%fcur                            , & ! Input:  [real(r8)] fraction of allocation that goes to currently displayed growth, remainder to storage
+        fcur_root                            => veg_vp%fcur_root                       , & ! Input:  [real(r8)] fraction of allocation to root that goes to currently displayed growth, remainder to storage
         fcur_dyn                             => cnstate_vars%fcur_dyn_patch            , & ! Output: [real(r8)  (:)   ]  allocation parameter: fraction of allocation that goes to currently displayed growth, remainder to storage, dynamic
 
         !! pool sizes
@@ -1277,26 +1278,21 @@ contains
             end if
 
             ! Test for the end of the declining period for fine root allocation. 
-            ! However, dynamic allocation factor is not yet implemented. 
-            ! Note fine root growth continues when offset_flag_root = 1 and only
-            ! stops when dormant_flag_root = 1
+            ! When offset_flag_root = 1, the fraction of displayed fine root 
+            ! growth drops from fcur_root(ivt(p)) to zero. 
             if (offset_flag_root(p) == 1.0_r8) then
                ! decrement counter for declining period
                offset_counter_root(p) = offset_counter_root(p) - dt
 
-               ! Dynamic allocation is currently not implemented
-               ! ! decrement fcur_dyn from 1 to 0
-               ! fcur_dyn(p) = offset_counter_root(p) / secspday / PhenolParamsInst%ndays_off_fcur
-               ! constant fcur_dyn
-               fcur_dyn(p) = fcur2(ivt(p))
+               ! decrement fcur_dyn from 1 to 0
+               fcur_dyn(p) = fcur_root(ivt(p)) * offset_counter_root(p) / secspday / PhenolParamsInst%ndays_off_fcur
 
                ! if this is the end of the offset_period, reset phenology
                ! flags and indices
                if (offset_counter_root(p) == 0.0_r8) then
                   offset_flag_root(p) = 0._r8
                   offset_counter_root(p) = 0._r8
-                  ! fcur_dyn(p) = 0._r8
-                  fcur_dyn(p) = fcur2(ivt(p))
+                  fcur_dyn(p) = 0._r8 ! no fine root display growth during dormancy
                   dormant_flag_root(p) = 1._r8
                end if
 
@@ -1310,11 +1306,9 @@ contains
                      offset_flag_root(p) = 1._r8
                      offset_counter_root(p) = PhenolParamsInst%ndays_off_fcur * secspday
                   end if
-                  ! fcur_dyn(p) = 1._r8
-                  fcur_dyn(p) = fcur2(ivt(p))
+                  fcur_dyn(p) = fcur_root(ivt(p)) ! set fraction of displayed fine root growth to its maximum value
                else
-                  ! fcur_dyn(p) = 0._r8
-                  fcur_dyn(p) = fcur2(ivt(p))
+                  fcur_dyn(p) = 0._r8 ! no fine root display growth during dormancy
                end if
             end if
 
@@ -1538,6 +1532,9 @@ contains
             if (woody(ivt(p)) >= 1.0_r8) then
                 deadcrootp_storage_to_xfer(p) = bgtr(p) * deadcrootp_storage(p)
             end if
+
+            ! no dynamic fine root carbon display
+            fcur_dyn(p) = fcur2(ivt(p))
          end if
 
 #endif
@@ -1594,13 +1591,17 @@ contains
          onset_gddflag                       =>    cnstate_vars%onset_gddflag_patch                      , & ! Output: [real(r8)  (:)   ]  onset freeze flag
          onset_gdd                           =>    cnstate_vars%onset_gdd_patch                          , & ! Output: [real(r8)  (:)   ]  onset growing degree days
          onset_chil                          =>    cnstate_vars%onset_chil_patch                         , & 
-         dayl_temp                           =>    cnstate_vars%dayl_temp                         , &
+         dayl_temp                           =>    cnstate_vars%dayl_temp                                , &
          offset_flag                         =>    cnstate_vars%offset_flag_patch                        , & ! Output: [real(r8)  (:)   ]  offset flag
          offset_counter                      =>    cnstate_vars%offset_counter_patch                     , & ! Output: [real(r8)  (:)   ]  offset counter (seconds)
          bglfr_leaf                          =>    cnstate_vars%bglfr_leaf_patch                         , & ! Output: [real(r8)  (:)   ]  background leaf litterfall rate (1/s)
          bglfr_froot                         =>    cnstate_vars%bglfr_froot_patch                        , & ! Output: [real(r8)  (:)   ]  background fine root litterfall rate (1/s)
          bgtr                                =>    cnstate_vars%bgtr_patch                               , & ! Output: [real(r8)  (:)   ]  background transfer growth rate (1/s)
          lgsf                                =>    cnstate_vars%lgsf_patch                               , & ! Output: [real(r8)  (:)   ]  long growing season factor [0-1]
+
+         fcur2                               =>    veg_vp%fcur                           , & ! Input:  [real(r8)] fraction of allocation that goes to currently displayed growth, remainder to storage
+         fcur_root                           =>    veg_vp%fcur_root                      , & ! Input:  [real(r8)] fraction of allocation to root that goes to currently displayed growth, remainder to storage
+         fcur_dyn                            =>    cnstate_vars%fcur_dyn_patch           , & ! Output: [real(r8)  (:)   ]  allocation parameter: fraction of allocation that goes to currently displayed growth, remainder to storage, dynamic
 
          leafc_storage                       =>    veg_cs%leafc_storage                  , & ! Input:  [real(r8)  (:)   ]  (gC/m2) leaf C storage
          frootc_storage                      =>    veg_cs%frootc_storage                 , & ! Input:  [real(r8)  (:)   ]  (gC/m2) fine root C storage
@@ -1703,9 +1704,15 @@ contains
             bgtr(p) = 0._r8
             lgsf(p) = 0._r8
 
+#ifdef HUMHOL
             if ((ivt(p) .ne. nbrdlf_dcd_brl_shrub) .and. (ivt(p) .ne. ndllf_dcd_brl_tree)) then
                bglfr_froot(p) = 0._r8
+               fcur_dyn(p) = fcur2(ivt(p)) ! no dynamic fine root display
             end if
+#else
+            bglfr_froot(p) = 0._r8
+            fcur_dyn(p) = fcur2(ivt(p)) ! no dynamic fine root display   
+#endif
 
             ! onset gdd sum from Biome-BGC, v4.1.2
             !crit_onset_gdd = exp(crit_gdd1(ivt(p)) + crit_gdd2(ivt(p))*(annavg_t2m(p) - SHR_CONST_TKFRZ))
@@ -2087,6 +2094,7 @@ contains
        onset_flag                            => cnstate_vars%onset_flag_patch          , & ! Input:  [real(r8)  (:)   ]  onset flag of aboveground part
        onset_gddflag                         => cnstate_vars%onset_gddflag_patch       , & ! Input:  [real(r8) (:)   ]  degree days flag
        fcur2                                 => veg_vp%fcur                            , & ! Input:  [real(r8)]  allocation parameter: fraction of allocation that goes to currently displayed growth, remainder to storage
+       fcur_root                             => veg_vp%fcur_root                       , & ! Input:  [real(r8)] fraction of allocation to root that goes to currently displayed growth, remainder to storage
        fcur_dyn                              => cnstate_vars%fcur_dyn_patch            , & ! Output: [real(r8)  (:)   ]  allocation parameter: fraction of allocation that goes to currently displayed growth, remainder to storage, dynamic
        onset_flag_root                       => cnstate_vars%onset_flag_root_patch     , & ! Output: [real(r8)  (:)   ]  onset flag of belowground part
        onset_gddflag_root                    => cnstate_vars%onset_gddflag_root_patch  , & ! Output: [real(r8)  (:)   ]  flag to start accumulating gdd/chilling
@@ -2234,18 +2242,15 @@ contains
                ! decrement counter for declining period
                offset_counter_root(p) = offset_counter_root(p) - dt
 
-               ! ! decrement fcur_dyn from 1 to 0
-               ! fcur_dyn(p) = offset_counter_root(p) / secspday / ndays_off_fcur
-               ! constant fcur_dyn
-               fcur_dyn(p) = fcur2(ivt(p))
+               ! decrement fcur_dyn from 1 to 0
+               fcur_dyn(p) = fcur_root(ivt(p)) * offset_counter_root(p) / secspday / PhenolParamsInst%ndays_off_fcur
 
                ! if this is the end of the offset_period, reset phenology
                ! flags and indices
                if (offset_counter_root(p) == 0.0_r8) then
                   offset_flag_root(p) = 0._r8
                   offset_counter_root(p) = 0._r8
-                  ! fcur_dyn(p) = 0._r8
-                  fcur_dyn(p) = fcur2(ivt(p))
+                  fcur_dyn(p) = 0._r8 ! no fine root display growth during dormancy
                   dormant_flag_root(p) = 1._r8
                end if
             else
@@ -2258,11 +2263,9 @@ contains
                      offset_flag_root(p) = 1._r8
                      offset_counter_root(p) = PhenolParamsInst%ndays_off_fcur * secspday
                   end if
-                  ! fcur_dyn(p) = 1._r8
-                  fcur_dyn(p) = fcur2(ivt(p))
+                  fcur_dyn(p) = fcur_root(ivt(p)) ! set fraction of displayed fine root growth to its maximum value
                else
-                  ! fcur_dyn(p) = 0._r8
-                  fcur_dyn(p) = fcur2(ivt(p))
+                  fcur_dyn(p) = 0._r8 ! no fine root display growth during dormancy
                end if
             end if
 
@@ -2525,7 +2528,11 @@ contains
          bglfr_leaf                          =>    cnstate_vars%bglfr_leaf_patch                         , & ! Output:  [real(r8) (:)   ]  background leaf litterfall rate (1/s)
          bglfr_froot                         =>    cnstate_vars%bglfr_froot_patch                        , & ! Output:  [real(r8) (:)   ]  background fine root litterfall rate (1/s)
          bgtr                                =>    cnstate_vars%bgtr_patch                               , & ! Output:  [real(r8) (:)   ]  background transfer growth rate (1/s)
-         annavg_t2m                          =>    cnstate_vars%annavg_t2m_patch                         , & ! Output:  [real(r8) (:)   ]  annual average 2m air temperature (K)
+
+         fcur2                               =>    veg_vp%fcur                           , & ! Input:  [real(r8)] fraction of allocation that goes to currently displayed growth, remainder to storage
+         fcur_dyn                            =>    cnstate_vars%fcur_dyn_patch           , & ! Output: [real(r8)  (:)   ]  allocation parameter: fraction of allocation that goes to currently displayed growth, remainder to storage, dynamic
+
+         annavg_t2m                          =>    cnstate_vars%annavg_t2m_patch         , & ! Output:  [real(r8) (:)   ]  annual average 2m air temperature (K)
 
          leafc_storage                       =>    veg_cs%leafc_storage                  , & ! Input:  [real(r8)  (:)   ]  (gC/m2) leaf C storage
          frootc_storage                      =>    veg_cs%frootc_storage                 , & ! Input:  [real(r8)  (:)   ]  (gC/m2) fine root C storage
@@ -2941,6 +2948,9 @@ contains
                end if
             end if
            
+            ! fine root display growth factor  is identical to leaves
+            fcur_dyn(p) = fcur2(ivt(p))
+
          end if ! end if stress deciduous
 
       end do ! end of pft loop

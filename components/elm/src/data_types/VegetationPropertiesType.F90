@@ -56,6 +56,8 @@ module VegetationPropertiesType
                                                        ! (phloem and ray parenchyma) (no units)
      real(r8), pointer :: fcur          (:) => null()  ! allocation parameter: fraction of allocation that goes
                                                        ! to currently displayed growth, remainder to storage
+     real(r8), pointer :: fcur_root     (:) => null()  ! root allocation parameter: fraction of allocation that goes
+                                                       ! to currently displayed growth, remainder to storage
      real(r8), pointer :: lf_flab       (:) => null()  ! leaf litter labile fraction
      real(r8), pointer :: lf_fcel       (:) => null()  ! leaf litter cellulose fraction
      real(r8), pointer :: lf_flig       (:) => null()  ! leaf litter lignin fraction
@@ -179,7 +181,7 @@ contains
     use pftvarcon , only : z0mr, displar, dleaf, rhol, rhos, taul, taus, xl
     use pftvarcon , only : c3psn, slatop, dsladlai, leafcn, flnr, woody
     use pftvarcon , only : lflitcn, frootcn, livewdcn, deadwdcn, froot_leaf, stem_leaf, croot_stem
-    use pftvarcon , only : flivewd, fcur, lf_flab, lf_fcel, lf_flig, fr_flab, fr_fcel, fr_flig
+    use pftvarcon , only : flivewd, fcur, fcur_root, lf_flab, lf_fcel, lf_flig, fr_flab, fr_fcel, fr_flig
     use pftvarcon , only : leaf_long, froot_long, rhizome_long, evergreen, stress_decid, season_decid
     use pftvarcon , only : manunitro, graincn, fleafcn, ffrootcn, fstemcn, dwood
     use pftvarcon , only : presharv, convfact, fyield
@@ -242,6 +244,7 @@ contains
     allocate(this%croot_stem    (0:numpft))        ; this%croot_stem   (:)   =spval
     allocate(this%flivewd       (0:numpft))        ; this%flivewd      (:)   =spval
     allocate(this%fcur          (0:numpft))        ; this%fcur         (:)   =spval
+    allocate(this%fcur_root     (0:numpft))        ; this%fcur_root    (:)   =spval
     allocate(this%lf_flab       (0:numpft))        ; this%lf_flab      (:)   =spval
     allocate(this%lf_fcel       (0:numpft))        ; this%lf_fcel      (:)   =spval
     allocate(this%lf_flig       (0:numpft))        ; this%lf_flig      (:)   =spval
@@ -381,6 +384,7 @@ contains
        this%croot_stem(m)   = croot_stem(m)
        this%flivewd(m)      = flivewd(m)
        this%fcur(m)         = fcur(m)
+       this%fcur_root(m)    = fcur_root(m)
        this%lf_flab(m)      = lf_flab(m)
        this%lf_fcel(m)      = lf_fcel(m)
        this%lf_flig(m)      = lf_flig(m)
