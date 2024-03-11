@@ -1505,6 +1505,9 @@ contains
             if (woody(ivt(p)) >= 1.0_r8) then
                 deadcrootp_storage_to_xfer(p) = bgtr(p) * deadcrootp_storage(p)
             end if
+
+            fcur_dyn(p) = fcur2(ivt(p))
+
          end if
 
 #else
