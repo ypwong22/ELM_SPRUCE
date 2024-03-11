@@ -78,6 +78,12 @@ module AllocationMod
      real(r8), pointer :: compet_pft_sminn(:) => null() ! (gN/gC) the tangent value of nitrogen uptake per unit fine root biomass if the N-limitation factor (fpi_pft) is infinity
      real(r8), pointer :: compet_pft_sminp(:) => null() ! (gP/gC) the tangent value of phosphorus uptake per unit fine root biomass if the N-limitation factor (fpi_pft) is infinity
 
+     real(r8), pointer :: cpool_pft_sminn(:)  => null() ! (unitless) the scaling factor on plant_ndemand(p) representing mycorrhizae's ability to amplify plant capability
+     real(r8), pointer :: cpool_pft_sminp(:)  => null() ! (unitless) the scaling factor on plant_pdemand(p) representing mycorrhizae's ability to amplify plant capability
+
+     real(r8), pointer :: alpha_fpg           => null() ! (unitless) adjust the rate of decreasing dependence on mycorrhizae-driven uptake as soil N content increase
+     real(r8), pointer :: alpha_fpg_p         => null() ! (unitless) adjust the rate of decreasing dependence on mycorrhizae-driven uptake as soil P content increase
+
      real(r8), pointer :: q10_uptake          => null() ! (unitless) Q10 base constant for temperature sensitivity of uptake
      real(r8), pointer :: tbase_uptake        => null() ! (K) base temperature for Q10 temperature sensitivity of uptake
      real(r8), pointer :: scale_uptake(:)     => null() ! (unitless) scale factors for Q10 temperature sensitivity of uptake
@@ -224,6 +230,10 @@ contains
 
     allocate(AllocParamsInst%compet_pft_sminn(0:npft))
     allocate(AllocParamsInst%compet_pft_sminp(0:npft))
+    allocate(AllocParamsInst%cpool_pft_sminn(0:npft))
+    allocate(AllocParamsInst%cpool_pft_sminp(0:npft))
+    allocate(AllocParamsInst%alpha_fpg)
+    allocate(AllocParamsInst%alpha_fpg_p)
     allocate(AllocParamsInst%q10_uptake)
     allocate(AllocParamsInst%tbase_uptake)
     allocate(AllocParamsInst%scale_uptake(0:npft))
@@ -236,6 +246,22 @@ contains
 
     tString='compet_pft_sminp'
     call ncd_io(varname=trim(tString),data=AllocParamsInst%compet_pft_sminp, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='cpool_pft_sminn'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%cpool_pft_sminn, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='cpool_pft_sminp'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%cpool_pft_sminp, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='alpha_fpg'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%alpha_fpg, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='alpha_fpg_p'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%alpha_fpg_p, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
     tString='q10_uptake'
@@ -1008,10 +1034,14 @@ contains
             plant_pabsorb(p) = plant_pabsorb(p) * sminp(c) / &
                (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))
 
-            ! weighted average with the demand-pull part
-            plant_nabsorb(p) = plant_ndemand(p) * exp(-prev_fpg_patch(p)) + plant_nabsorb(p) * (1 - exp(-prev_fpg_patch(p)))
-            plant_pabsorb(p) = plant_pdemand(p) * exp(-prev_fpg_p_patch(p)) + plant_pabsorb(p) * (1 - exp(-prev_fpg_p_patch(p)))
-
+            ! demand pull: assume to be mycorrhizae-related uptake since it is proportional to cpool
+            ! supply drive: remove the decline factor since it is simply roots affinity
+            plant_nabsorb(p) = plant_nabsorb(p) + &
+               plant_ndemand(p) * AllocParamsInst%cpool_pft_sminn(ivt(p)) * & 
+               exp(- AllocParamsInst%alpha_fpg * prev_fpg_patch(p))
+            plant_pabsorb(p) = plant_pabsorb(p) + &
+               plant_pdemand(p) * AllocParamsInst%cpool_pft_sminp(ivt(p)) * & 
+               exp(- AllocParamsInst%alpha_fpg_p * prev_fpg_p_patch(p))
          else
             plant_nabsorb(p) = plant_ndemand(p)
             plant_pabsorb(p) = plant_pdemand(p)
