@@ -84,9 +84,9 @@ module AllocationMod
      real(r8), pointer :: alpha_fpg           => null() ! (unitless) adjust the rate of decreasing dependence on mycorrhizae-driven uptake as soil N content increase
      real(r8), pointer :: alpha_fpg_p         => null() ! (unitless) adjust the rate of decreasing dependence on mycorrhizae-driven uptake as soil P content increase
 
-     real(r8), pointer :: q10_uptake          => null() ! (unitless) Q10 base constant for temperature sensitivity of uptake
+     real(r8), pointer :: q10_uptake(:)       => null() ! (unitless) Q10 base constant for temperature sensitivity of uptake
      real(r8), pointer :: tbase_uptake        => null() ! (K) base temperature for Q10 temperature sensitivity of uptake
-     real(r8), pointer :: scale_uptake(:)     => null() ! (unitless) scale factors for Q10 temperature sensitivity of uptake
+     real(r8), pointer :: scale_uptake        => null() ! (unitless) scale factors for Q10 temperature sensitivity of uptake
      real(r8), pointer :: kmin_nuptake(:)     => null() ! (gN m-2) half saturation point for N uptake in Michaelis-Menten
      real(r8), pointer :: kmin_puptake(:)     => null() ! (gP m-2) half saturation point for P uptake in Michaelis-Menten
 #endif
@@ -234,9 +234,9 @@ contains
     allocate(AllocParamsInst%cpool_pft_sminp(0:npft))
     allocate(AllocParamsInst%alpha_fpg)
     allocate(AllocParamsInst%alpha_fpg_p)
-    allocate(AllocParamsInst%q10_uptake)
+    allocate(AllocParamsInst%q10_uptake(0:npft))
     allocate(AllocParamsInst%tbase_uptake)
-    allocate(AllocParamsInst%scale_uptake(0:npft))
+    allocate(AllocParamsInst%scale_uptake)
     allocate(AllocParamsInst%kmin_nuptake(0:npft))
     allocate(AllocParamsInst%kmin_puptake(0:npft))
 
@@ -1015,18 +1015,23 @@ contains
 
          if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
 
+            ! The cpool-proportional side perhaps should not enter competition because
+            ! the ericoid fungi is directly using organic C? 
+            ! Instead it will meet a part of shrub demand at the cost of higher maintenance
+            ! respiration? 
+
             ! The supply-drive part: proportional to fine root biomass
             plant_nabsorb(p) = (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcn(ivt(p)) * AllocParamsInst%compet_pft_sminn(ivt(p))
             plant_pabsorb(p) = (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcp(ivt(p)) * AllocParamsInst%compet_pft_sminp(ivt(p))
 
             ! further scale by Q10
             c = veg_pp%column(p)
-            plant_nabsorb(p) = plant_nabsorb(p) * (AllocParamsInst%q10_uptake ** &
+            plant_nabsorb(p) = plant_nabsorb(p) * (AllocParamsInst%q10_uptake(ivt(p)) ** &
                ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / & 
-                 AllocParamsInst%scale_uptake(ivt(p))))
-            plant_pabsorb(p) = plant_pabsorb(p) * (AllocParamsInst%q10_uptake ** &
+                 AllocParamsInst%scale_uptake))
+            plant_pabsorb(p) = plant_pabsorb(p) * (AllocParamsInst%q10_uptake(ivt(p)) ** &
                ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / & 
-                 AllocParamsInst%scale_uptake(ivt(p))))
+                 AllocParamsInst%scale_uptake))
 
             ! further scale by Michaelis-Menten
             plant_nabsorb(p) = plant_nabsorb(p) * sminn(c) / &
