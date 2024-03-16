@@ -972,7 +972,7 @@ contains
             if(cnlw>0) n_allometry(p) = n_allometry(p) + f3/cnlw ! Rhizomes
             p_allometry(p) = 1._r8/cpl + f1/cpfr
             if(cplw>0) p_allometry(p) = p_allometry(p) + f3/cplw ! Rhizomes
-            
+
          end if
 
          plant_ndemand(p) = availc(p)*(n_allometry(p)/c_allometry(p))
