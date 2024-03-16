@@ -284,7 +284,7 @@ contains
        num_soilp, filter_soilp,                                         &
        num_pcropp, filter_pcropp,                                       &
        cnstate_vars,  atm2lnd_vars,           &
-       canopystate_vars, soilstate_vars, crop_vars,   &
+       canopystate_vars, soilstate_vars, soilhydrology_vars, crop_vars,   &
        ch4_vars, photosyns_vars,   &
        frictionvel_vars     )
     !-------------------------------------------------------------------
@@ -332,6 +332,7 @@ contains
     type(ch4_type)           , intent(in)    :: ch4_vars
     type(photosyns_type)     , intent(in)    :: photosyns_vars
     type(frictionvel_type)   , intent(in)    :: frictionvel_vars
+    type(soilhydrology_type) , intent(in)    :: soilhydrology_vars
 
     character(len=64) :: event
     real(r8) :: dt, dayspyr
@@ -407,7 +408,7 @@ contains
        end if
        ! This is auto-trophic respiration, thus don't call this for FATES
        call MaintenanceResp(bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
-            canopystate_vars, soilstate_vars,  photosyns_vars, cnstate_vars)
+            canopystate_vars, soilstate_vars,  photosyns_vars, cnstate_vars )
        call t_stop_lnd(event)
 
     end if
@@ -479,10 +480,9 @@ contains
        call Allocation1_PlantNPDemand (bounds                             , &
                 num_soilc, filter_soilc, num_soilp, filter_soilp            , &
                 photosyns_vars, crop_vars, canopystate_vars, cnstate_vars   , &
-               dt, year )
+                soilhydrology_vars, dt, year )
        call t_stop_lnd(event)
     end if
-
 
   end subroutine EcosystemDynNoLeaching1
 
@@ -557,7 +557,7 @@ contains
     type(crop_type)          , intent(inout) :: crop_vars
     type(ch4_type)           , intent(in)    :: ch4_vars
     type(photosyns_type)     , intent(in)    :: photosyns_vars
-    type(soilhydrology_type) , intent(inout)    :: soilhydrology_vars
+    type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
     type(energyflux_type)    , intent(in)    :: energyflux_vars
     type(solarabs_type)      , intent(in)    :: solarabs_vars
 !

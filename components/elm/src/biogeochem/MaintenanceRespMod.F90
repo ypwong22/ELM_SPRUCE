@@ -13,20 +13,22 @@ module MaintenanceRespMod
   use abortutils          , only : endrun
   use shr_log_mod         , only : errMsg => shr_log_errMsg
   use pftvarcon           , only : npcropmin
-  use SharedParamsMod   , only : ParamsShareInst
-  use VegetationPropertiesType      , only : veg_vp
+  use SharedParamsMod     , only : ParamsShareInst
+  use AllocationMod       , only : AllocParamsInst
+  use VegetationPropertiesType , only : veg_vp
   use SoilStateType       , only : soilstate_type
   use CanopyStateType     , only : canopystate_type
+  use CNStateType         , only : cnstate_type
   use TemperatureType     , only : temperature_type
   use PhotosynthesisType  , only : photosyns_type
   use CNCarbonFluxType    , only : carbonflux_type
   use CNCarbonStateType   , only : carbonstate_type
   use CNNitrogenStateType , only : nitrogenstate_type
-  use ColumnDataType      , only : col_es
+  use ColumnDataType      , only : col_es, col_ns, col_ps
   use VegetationType      , only : veg_pp
   use VegetationDataType  , only : veg_es, veg_cs, veg_cf, veg_ns
-  use CNStateType         , only : cnstate_type
-  use pftvarcon           , only: nc3_arctic_grass ! control for moss MR in SPRUCE runs
+  use elm_varctl          , only: iulog
+  use pftvarcon           , only: ndllf_evr_brl_tree, ndllf_dcd_brl_tree, nbrdlf_dcd_brl_shrub, nc3_arctic_grass
   !
   implicit none
   save
@@ -89,7 +91,6 @@ contains
         dormant_mr_temp_Inst=tempr
      end if
 
-
      tString='dormant_mr_factor'
      call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
      if ( .not. readv .and. dormant_mr_temp_Inst == 0.0_r8) then
@@ -139,6 +140,7 @@ contains
     real(r8):: q10   ! temperature dependence
     real(r8):: tc    ! temperature correction, 2m air temp (unitless)
     real(r8):: tcsoi(bounds%begc:bounds%endc,nlevgrnd) ! temperature correction by soil layer (unitless)
+    real(r8):: mm, mmp ! used to allocate between fungi and active uptake
     !-----------------------------------------------------------------------
 
     associate(                                                        &
@@ -179,8 +181,12 @@ contains
          frootn         =>    veg_ns%frootn       , & ! Input:  [real(r8) (:)   ]  (gN/m2) fine root N
          livestemn      =>    veg_ns%livestemn    , & ! Input:  [real(r8) (:)   ]  (gN/m2) live stem N
          livecrootn     =>    veg_ns%livecrootn   , & ! Input:  [real(r8) (:)   ]  (gN/m2) live coarse root N
-         grainn         =>    veg_ns%grainn       & ! Output: [real(r8) (:)   ]  (kgN/m2) grain N
+         grainn         =>    veg_ns%grainn       , & ! Output: [real(r8) (:)   ]  (kgN/m2) grain N
 
+#ifdef HUM_HOL
+         sminn          => col_ns%sminn           , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral N
+         sminp          => col_ps%sminp             & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral P
+#endif
          )
 
       ! base rate for maintenance respiration is from:
@@ -245,7 +251,7 @@ contains
                          lmrsha(p) * laisha(p) * 12.011e-6_r8
 
          else !nosno
-             leaf_mr(p) = 0._r8
+            leaf_mr(p) = 0._r8
 
          end if
 
@@ -281,7 +287,7 @@ contains
             ! to estimate the total fine root maintenance respiration as a
             ! function of temperature and N content.
 #if (defined HUM_HOL)
-            !recalculate pft-specific rates
+            ! recalculate pft-specific rates
             if (t_soisno(c,j) > dormant_mr_temp) then
                tcsoi(c,j) = q10_mr_pft(ivt(p))**((t_soisno(c,j) - SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
 
@@ -293,6 +299,18 @@ contains
                 tcsoi(c,j) = dormant_mr_factor
             end if
             br_mr = br_mr_pft(ivt(p))
+
+            ! increase by a factor due to transfer to fungi: 
+            ! the ratio is determined by relative uptake from fungi and mineral nutrients, 
+            ! see AllocationMod.F90
+            mm = AllocParamsInst%cpool_pft_sminn(ivt(p)) / AllocParamsInst%compet_pft_sminn(ivt(p))
+            mmp = AllocParamsInst%cpool_pft_sminp(ivt(p)) / AllocParamsInst%compet_pft_sminp(ivt(p))
+            if (ivt(p) == nbrdlf_dcd_brl_shrub) then
+               ! fungi uptake declines
+               mm = mm * (1._r8 - sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c)))
+               mmp = mmp * (1._r8 - sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c)))
+            end if
+            br_mr = br_mr * (0.9_r8 + 0.5 * (mm + mmp) / 2._r8)
 #endif
             froot_mr(p) = froot_mr(p) + frootn(p)*br_mr*tcsoi(c,j)*rootfr(p,j)
          end do

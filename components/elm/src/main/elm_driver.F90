@@ -1047,9 +1047,9 @@ contains
                        filter(nc)%num_pcropp, filter(nc)%pcropp, &
                        cnstate_vars,            &
                        atm2lnd_vars,            &
-                       canopystate_vars, soilstate_vars, crop_vars,   &
+                       canopystate_vars, soilstate_vars, soilhydrology_vars, crop_vars,   &
                        ch4_vars, photosyns_vars, frictionvel_vars )
-
+ 
              !--------------------------------------------------------------------------------
              if (use_elm_interface) then
                  ! STEP-1: pass data from CLM to elm_interface_data (INTERFACE DATA TYPE)

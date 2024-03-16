@@ -164,7 +164,7 @@ module CNEcosystemDynBetrMod
           call c14_col_cf%SetValues(num_soilc, filter_soilc, 0._r8)
           call c14_veg_cf%SetValues(num_soilp, filter_soilp, 0._r8)
        end if
-
+       
        call col_nf%SetValues (num_soilc, filter_soilc, 0._r8)
        call veg_nf%SetValues (num_soilp, filter_soilp, 0._r8)
 
