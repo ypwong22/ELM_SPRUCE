@@ -84,11 +84,12 @@ module AllocationMod
      real(r8), pointer :: alpha_fpg           => null() ! (unitless) adjust the rate of decreasing dependence on mycorrhizae-driven uptake as soil N content increase
      real(r8), pointer :: alpha_fpg_p         => null() ! (unitless) adjust the rate of decreasing dependence on mycorrhizae-driven uptake as soil P content increase
 
-     real(r8), pointer :: q10_uptake          => null() ! (unitless) Q10 base constant for temperature sensitivity of uptake
+     real(r8), pointer :: q10_uptake(:)       => null() ! (unitless) Q10 base constant for temperature sensitivity of uptake
      real(r8), pointer :: tbase_uptake        => null() ! (K) base temperature for Q10 temperature sensitivity of uptake
-     real(r8), pointer :: scale_uptake(:)     => null() ! (unitless) scale factors for Q10 temperature sensitivity of uptake
+     real(r8), pointer :: scale_uptake        => null() ! (unitless) scale factors for Q10 temperature sensitivity of uptake
      real(r8), pointer :: kmin_nuptake(:)     => null() ! (gN m-2) half saturation point for N uptake in Michaelis-Menten
      real(r8), pointer :: kmin_puptake(:)     => null() ! (gP m-2) half saturation point for P uptake in Michaelis-Menten
+     real(r8), pointer :: froot_leaf_slope(:) => null() ! (unitless) sensitivity of froot_leaf to Michaelis-Menten limitation
 #endif
 
   end type AllocParamsType
@@ -234,11 +235,12 @@ contains
     allocate(AllocParamsInst%cpool_pft_sminp(0:npft))
     allocate(AllocParamsInst%alpha_fpg)
     allocate(AllocParamsInst%alpha_fpg_p)
-    allocate(AllocParamsInst%q10_uptake)
+    allocate(AllocParamsInst%q10_uptake(0:npft))
     allocate(AllocParamsInst%tbase_uptake)
-    allocate(AllocParamsInst%scale_uptake(0:npft))
+    allocate(AllocParamsInst%scale_uptake)
     allocate(AllocParamsInst%kmin_nuptake(0:npft))
     allocate(AllocParamsInst%kmin_puptake(0:npft))
+    allocate(AllocParamsInst%froot_leaf_slope(0:npft))
 
     tString='compet_pft_sminn'
     call ncd_io(varname=trim(tString),data=AllocParamsInst%compet_pft_sminn, flag='read', ncid=ncid, readvar=readv)
@@ -282,6 +284,10 @@ contains
 
     tString='kmin_puptake'
     call ncd_io(varname=trim(tString),data=AllocParamsInst%kmin_puptake, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='froot_leaf_slope'
+    call ncd_io(varname=trim(tString),data=AllocParamsInst%froot_leaf_slope, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
 #endif
@@ -494,6 +500,7 @@ contains
     integer :: fp                                                    !lake filter pft index
     integer :: fc                                                    !lake filter column index
     real(r8):: mr                                                    !maintenance respiration (gC/m2/s)
+    real(r8):: mm, mmp                                               !temporary hold for Michaelis-Menten limitation values
     real(r8):: f1,f2,f3,f4,g1,g2                                     !allocation parameters
     real(r8):: cnl,cnfr,cnlw,cndw                                    !C:N ratios for leaf, fine root, and wood
 
@@ -755,6 +762,16 @@ contains
          f1 = froot_leaf(ivt(p))
          f2 = croot_stem(ivt(p))
 
+#ifdef HUM_HOL
+         if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
+            mm = sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c))
+            mmp = sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))
+
+            f1 = froot_leaf(ivt(p)) + AllocParamsInst%froot_leaf_slope(ivt(p)) * min(mm, mmp)
+            f1 = max(f1, 0.1_r8)
+         end if
+#endif
+
          ! modified wood allocation to be 2.2 at npp=800 gC/m2/yr, 0.2 at npp=0,
          ! constrained so that it does not go lower than 0.2 (under negative annsum_npp)
          ! This variable allocation is only for trees. Shrubs have a constant
@@ -1015,18 +1032,25 @@ contains
 
          if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
 
+            ! The cpool-proportional side perhaps should not enter competition because
+            ! the ericoid fungi is directly using organic C? 
+            ! Instead it will meet a part of shrub demand at the cost of higher maintenance
+            ! respiration?
+            ! But simply adding more N will cause column NP balance to fail.
+            ! Instead, stimulate bio-activity, and increase uptake rate?
+
             ! The supply-drive part: proportional to fine root biomass
             plant_nabsorb(p) = (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcn(ivt(p)) * AllocParamsInst%compet_pft_sminn(ivt(p))
             plant_pabsorb(p) = (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcp(ivt(p)) * AllocParamsInst%compet_pft_sminp(ivt(p))
 
             ! further scale by Q10
             c = veg_pp%column(p)
-            plant_nabsorb(p) = plant_nabsorb(p) * (AllocParamsInst%q10_uptake ** &
+            plant_nabsorb(p) = plant_nabsorb(p) * (AllocParamsInst%q10_uptake(ivt(p)) ** &
                ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / & 
-                 AllocParamsInst%scale_uptake(ivt(p))))
-            plant_pabsorb(p) = plant_pabsorb(p) * (AllocParamsInst%q10_uptake ** &
+                 AllocParamsInst%scale_uptake))
+            plant_pabsorb(p) = plant_pabsorb(p) * (AllocParamsInst%q10_uptake(ivt(p)) ** &
                ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / & 
-                 AllocParamsInst%scale_uptake(ivt(p))))
+                 AllocParamsInst%scale_uptake))
 
             ! further scale by Michaelis-Menten
             plant_nabsorb(p) = plant_nabsorb(p) * sminn(c) / &
@@ -2072,6 +2096,7 @@ contains
     real(r8):: cp_stoich_var=0.4    ! variability of CP ratio
     real(r8):: curmr, curmr_ratio   !xsmrpool temporary variables
     real(r8):: xsmr_ratio           ! ratio of mr comes from non-structue carobn hydrate pool
+    real(r8):: mm, mmp              ! temporary hold for Michaelis-Menten limitation values
     !-----------------------------------------------------------------------
 
     associate(                                                                                 &
@@ -2243,7 +2268,10 @@ contains
          fpg_p_patch                  => cnstate_vars%fpg_p_patch             , & ! Output: [real(r8) (:)     ] P limitation
 
          plant_nabsorb                => veg_nf%plant_nabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up N (gN/m2/s)
-         plant_pabsorb                => veg_pf%plant_pabsorb                   & ! Input: [real(r8) (:)     ] fine root's ability to take up P
+         plant_pabsorb                => veg_pf%plant_pabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up P
+
+         sminn                        => col_ns%sminn                         , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral N
+         sminp                        => col_ps%sminp                         & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral P
 #endif
       )
 
@@ -2329,6 +2357,16 @@ contains
              ! set some local allocation variables
              f1 = froot_leaf(ivt(p))
              f2 = croot_stem(ivt(p))
+
+#ifdef HUM_HOL
+             if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
+                mm = sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c))
+                mmp = sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))
+
+                f1 = froot_leaf(ivt(p)) + AllocParamsInst%froot_leaf_slope(ivt(p)) * min(mm, mmp)
+                f1 = max(f1, 0.1_r8)
+             end if
+#endif
 
              ! modified wood allocation to be 2.2 at npp=800 gC/m2/yr, 0.2 at npp=0,
              ! constrained so that it does not go lower than 0.2 (under negative annsum_npp)

@@ -84,6 +84,11 @@ module CNStateType
      real(r8),  pointer :: prev_fpg_p_patch            (:)    ! patch-level fraction of potential gpp (no units)
 #endif
 
+     real(r8),  pointer :: fpg_patch                   (:)     ! patch-level fraction of potential gpp (no units)
+     real(r8),  pointer :: fpg_p_patch                 (:)     ! patch-level fraction of potential gpp (no units)
+     real(r8),  pointer :: prev_fpg_patch              (:)      ! patch-level fraction of potential gpp (no units)
+     real(r8),  pointer :: prev_fpg_p_patch            (:)    ! patch-level fraction of potential gpp (no units)
+
      real(r8) , pointer :: rf_decomp_cascade_col       (:,:,:) ! col respired fraction in decomposition step (frac)
      real(r8) , pointer :: pathfrac_decomp_cascade_col (:,:,:) ! col what fraction of C leaving a given pool passes through a given transition (frac) 
      real(r8) , pointer :: nfixation_prof_col          (:,:)   ! col (1/m) profile for N fixation additions 
@@ -533,6 +538,16 @@ contains
     call hist_addfld1d (fname='FPG_P', units='proportion', &
          avgflag='A', long_name='fraction of potential gpp due to P limitation', &
          ptr_col=this%fpg_p_col)
+
+    this%fpg_patch(begp:endp) = spval
+    call hist_addfld1d (fname='FPG_PATCH', units='proportion', &
+         avgflag='A', long_name='pft-level fraction of potential gpp due to N limitation', &
+         ptr_patch=this%fpg_patch)
+
+    this%prev_fpg_patch(begp:endp) = spval
+    call hist_addfld1d (fname='PREV_FPG_PATCH', units='proportion', &
+         avgflag='A', long_name='previous time step pft-level fraction of potential gpp due to N limitation', &
+         ptr_patch=this%prev_fpg_patch)
 
     this%fpg_p_patch(begp:endp) = spval
     call hist_addfld1d (fname='FPG_P_PATCH', units='proportion', &
@@ -1154,12 +1169,13 @@ contains
           this%farea_burned_col   (c) = spval
           this%fpi_col            (c) = spval
           this%fpg_col            (c) = spval
-          this%fpg_patch          (c) = spval
-          this%prev_fpg_patch     (c) = 1._r8
           this%fpi_p_col          (c) = spval
           this%fpg_p_col          (c) = spval
+          this%fpg_patch          (c) = spval
+          this%prev_fpg_patch     (c) = 1._r8
           this%fpg_p_patch        (c) = spval
           this%prev_fpg_p_patch   (c) = 1._r8
+
           do j = 1,nlevdecomp_full
              this%fpi_vr_col(c,j) = spval
              this%fpi_p_vr_col(c,j) = spval
@@ -1618,6 +1634,11 @@ contains
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%fpg_col) 
 
+    call restartvar(ncid=ncid, flag=flag, varname='fpg_p', xtype=ncd_double,  &
+         dim1name='column', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%fpg_p_col) 
+
     call restartvar(ncid=ncid, flag=flag, varname='fpg_patch', xtype=ncd_double,  &
          dim1name='pft', &
          long_name='', units='', &
@@ -1627,11 +1648,6 @@ contains
          dim1name='pft', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%prev_fpg_patch)
-
-    call restartvar(ncid=ncid, flag=flag, varname='fpg_p', xtype=ncd_double,  &
-         dim1name='column', &
-         long_name='', units='', &
-         interpinic_flag='interp', readvar=readvar, data=this%fpg_p_col) 
 
     call restartvar(ncid=ncid, flag=flag, varname='fpg_p_patch', xtype=ncd_double,  &
          dim1name='pft', &
