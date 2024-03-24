@@ -93,9 +93,9 @@ module PhenologyMod
      real(r8), pointer :: mort_a           => null() ! parameter controlling fine root mortality rate
      real(r8), pointer :: mort_b           => null() ! parameter controlling fine root mortality rate
      real(r8), pointer :: mort_d           => null() ! parameter controlling fine root mortality rate
-     real(r8), pointer :: mort_h2o         => null() ! parameter controlling fine root mortality rate
+     real(r8), pointer :: mort_h2o(:)      => null() ! parameter controlling fine root mortality rate
      real(r8), pointer :: mort_tsoi        => null() ! parameter controlling fine root mortality rate
-     real(r8), pointer :: mort_psi         => null() ! parameter controlling fine root mortality rate
+     real(r8), pointer :: mort_psi(:)      => null() ! parameter controlling fine root mortality rate
      real(r8), pointer :: ndays_off_fcur   => null() ! parameter controlling dynamic allocation, not used for now but leaving there
   end type PhenolParamsType
 
@@ -222,9 +222,9 @@ contains
      allocate(PhenolParamsInst%mort_a                    )
      allocate(PhenolParamsInst%mort_b                    )
      allocate(PhenolParamsInst%mort_d                    )
-     allocate(PhenolParamsInst%mort_h2o                  )
+     allocate(PhenolParamsInst%mort_h2o(0:npft)          )
      allocate(PhenolParamsInst%mort_tsoi                 )
-     allocate(PhenolParamsInst%mort_psi                  )
+     allocate(PhenolParamsInst%mort_psi(0:npft)          )
      allocate(PhenolParamsInst%ndays_off_fcur            )
 
     !
@@ -1238,7 +1238,7 @@ contains
             t_soi_avg = 0._r8
             h2osoi_liq_avg = 0._r8
             psi_max = -9999._r8
-            do j = 1, nlevsoi
+            do j = 1, 5 ! limit to top soil due to the shallow root
                t_soi_avg = t_soi_avg + rootfr(p, j) * t_soisno(c, j)
                h2osoi_liq_avg = h2osoi_liq_avg + & 
                   rootfr(p, j) * h2osoi_liq(c, j) / (col_pp%dz(c, j)*denh2o)
@@ -1247,20 +1247,19 @@ contains
             psi_max = max(smpmin(c), psi_max)
             ! Use Clapp and Hornberger "b" to calculate the soil matrix potential at mort_h2o
             ! using properties at 10 cm
-            psi_crit_h2osoi = - sucsat(c, 3) * max(PhenolParamsInst%mort_h2o / watsat(c, 3), &
-                                                   0.01_r8)**(-bsw(c, 3))
+            psi_crit_h2osoi = - sucsat(c, 3) * &
+               max(PhenolParamsInst%mort_h2o(ivt(p)) / watsat(c, 3), 0.01_r8)**(-bsw(c, 3))
             psi_crit_h2osoi = max(smpmin(c), psi_crit_h2osoi) ! limit the range
 
-            lfr_froot_td(p) = min((t_soi_avg - PhenolParamsInst%mort_tsoi)**2 / 4._r8 * & 
-                                  PhenolParamsInst%mort_a + PhenolParamsInst%mort_b, & 
-                                  400._r8 * PhenolParamsInst%mort_a + PhenolParamsInst%mort_b)
+            lfr_froot_td(p) = (t_soi_avg - PhenolParamsInst%mort_tsoi)**2 / 4._r8 * & 
+                               PhenolParamsInst%mort_a + 1._r8
 
-            if (h2osoi_liq_avg .le. PhenolParamsInst%mort_h2o) then
-               lfr_froot_wd(p) = 1._r8 + atan(PhenolParamsInst%mort_d * SHR_CONST_PI * (abs(psi_max) - PhenolParamsInst%mort_psi)) / SHR_CONST_PI
+            if (h2osoi_liq_avg .le. PhenolParamsInst%mort_h2o(ivt(p))) then
+               lfr_froot_wd(p) = 1.5_r8 + atan(PhenolParamsInst%mort_d * SHR_CONST_PI * (abs(psi_max) - PhenolParamsInst%mort_psi(ivt(p)))) / SHR_CONST_PI
             else
                ! find soil matric potential when theta = mort_h2o
-               w_d_crit = 1._r8 + atan(PhenolParamsInst%mort_d * SHR_CONST_PI * (abs(psi_crit_h2osoi) - PhenolParamsInst%mort_psi)) / SHR_CONST_PI
-               lfr_froot_wd(p) = (h2osoi_liq_avg - PhenolParamsInst%mort_h2o) / (1._r8 - PhenolParamsInst%mort_h2o) * (1.5_r8 - w_d_crit) + w_d_crit
+               w_d_crit = 1.5_r8 + atan(PhenolParamsInst%mort_d * SHR_CONST_PI * (abs(psi_crit_h2osoi) - PhenolParamsInst%mort_psi(ivt(p)))) / SHR_CONST_PI
+               lfr_froot_wd(p) = (h2osoi_liq_avg - PhenolParamsInst%mort_h2o(ivt(p))) / (1._r8 - PhenolParamsInst%mort_h2o(ivt(p))) * (PhenolParamsInst%mort_b - w_d_crit) + w_d_crit
             end if
 
             ! Pre-reset the compensatory growth rate for freeze-death of fine roots
@@ -2209,20 +2208,19 @@ contains
             psi_max = max(smpmin(c), psi_max)
             ! Use Clapp and Hornberger "b" to calculate the soil matrix potential at mort_h2o
             ! using properties at 10 cm
-            psi_crit_h2osoi = - sucsat(c, 3) * max(PhenolParamsInst%mort_h2o / watsat(c, 3), &
-                                                   0.01_r8)**(-bsw(c, 3))
+            psi_crit_h2osoi = - sucsat(c, 3) * & 
+               max(PhenolParamsInst%mort_h2o(ivt(p)) / watsat(c, 3), 0.01_r8)**(-bsw(c, 3))
             psi_crit_h2osoi = max(smpmin(c), psi_crit_h2osoi) ! limit the range
 
-            lfr_froot_td(p) = min((t_soi_avg - PhenolParamsInst%mort_tsoi)**2 / 4._r8 * &
-                                  PhenolParamsInst%mort_a + PhenolParamsInst%mort_b, &
-                                  400._r8 * PhenolParamsInst%mort_a + PhenolParamsInst%mort_b)
+            lfr_froot_td(p) = (t_soi_avg - PhenolParamsInst%mort_tsoi)**2 / 4._r8 * & 
+                               PhenolParamsInst%mort_a + 1._r8
 
-            if (h2osoi_liq_avg .le. PhenolParamsInst%mort_h2o) then
-               lfr_froot_wd(p) = 1._r8 + atan(PhenolParamsInst%mort_d * SHR_CONST_PI * (abs(psi_max) - PhenolParamsInst%mort_psi)) / SHR_CONST_PI
+            if (h2osoi_liq_avg .le. PhenolParamsInst%mort_h2o(ivt(p))) then
+               lfr_froot_wd(p) = 1.5_r8 + atan(PhenolParamsInst%mort_d * SHR_CONST_PI * (abs(psi_max) - PhenolParamsInst%mort_psi(ivt(p)))) / SHR_CONST_PI
             else
-               ! find soil matric potential when theta = 0.6
-               w_d_crit = 1._r8 + atan(PhenolParamsInst%mort_d * SHR_CONST_PI * (abs(psi_crit_h2osoi) - PhenolParamsInst%mort_psi)) / SHR_CONST_PI
-               lfr_froot_wd(p) = (h2osoi_liq_avg - PhenolParamsInst%mort_h2o) / (1._r8 - PhenolParamsInst%mort_h2o) * (1.5_r8 - w_d_crit) + w_d_crit
+               ! find soil matric potential when theta = mort_h2o
+               w_d_crit = 1.5_r8 + atan(PhenolParamsInst%mort_d * SHR_CONST_PI * (abs(psi_crit_h2osoi) - PhenolParamsInst%mort_psi(ivt(p)))) / SHR_CONST_PI
+               lfr_froot_wd(p) = (h2osoi_liq_avg - PhenolParamsInst%mort_h2o(ivt(p))) / (1._r8 - PhenolParamsInst%mort_h2o(ivt(p))) * (PhenolParamsInst%mort_b - w_d_crit) + w_d_crit
             end if
 
             ! compensatory growth rate for freeze-death of fine roots
