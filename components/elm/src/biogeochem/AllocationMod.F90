@@ -16,7 +16,9 @@ module AllocationMod
   use abortutils          , only : endrun
   use decompMod           , only : bounds_type
   use subgridAveMod       , only : p2c
+  use SharedParamsMod     , only : ParamsShareInst
   use CanopyStateType     , only : canopystate_type
+  use SoilHydrologyType   , only : soilhydrology_type
   !!! add phosphorus
   use CNStateType                   , only : cnstate_type
   use PhotosynthesisType            , only : photosyns_type
@@ -465,9 +467,9 @@ contains
   end subroutine EvaluateSupplStatus
 
   !-------------------------------------------------------------------------------------------------
-  
+
   subroutine Allocation1_PlantNPDemand (bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
-       photosyns_vars, crop_vars, canopystate_vars, cnstate_vars, dt, yr)
+       photosyns_vars, crop_vars, canopystate_vars, cnstate_vars, soilhydrology_vars, dt, yr)
     ! PHASE-1 of Allocation: loop over patches to assess the total plant N demand and P demand
     ! !USES:
     !$acc routine seq
@@ -491,6 +493,7 @@ contains
     type(crop_type)          , intent(in)    :: crop_vars
     type(canopystate_type)   , intent(in)    :: canopystate_vars
     type(cnstate_type)       , intent(inout) :: cnstate_vars
+    type(soilhydrology_type) , intent(in)    :: soilhydrology_vars
     real(r8), intent(in) :: dt
     integer, intent(in) :: yr
     !
@@ -500,7 +503,6 @@ contains
     integer :: fp                                                    !lake filter pft index
     integer :: fc                                                    !lake filter column index
     real(r8):: mr                                                    !maintenance respiration (gC/m2/s)
-    real(r8):: mm, mmp                                               !temporary hold for Michaelis-Menten limitation values
     real(r8):: f1,f2,f3,f4,g1,g2                                     !allocation parameters
     real(r8):: cnl,cnfr,cnlw,cndw                                    !C:N ratios for leaf, fine root, and wood
 
@@ -517,6 +519,13 @@ contains
     real(r8):: puptake_prof(bounds%begc:bounds%endc, 1:nlevdecomp)
 
     real(r8):: dayspyr
+
+    ! local nutrient uptake pathways
+    real(r8):: active_n, active_p, fungi_n, fungi_p
+    real(r8):: maxroot_c, maxroot_n, maxroot_p
+    real(r8):: mm, mmp !temporary hold for Michaelis-Menten limitation values
+    real(r8):: scale_q10 !temporary hold for Q10-scalar on uptake rate
+    real(r8):: scale_wtd ! temporary hold for water table inhibition on uptake rate
 
   !-----------------------------------------------------------------------
 
@@ -646,10 +655,10 @@ contains
          sminn                        => col_ns%sminn                         , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral N
          sminp                        => col_ps%sminp                         , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral P
 
-         t_soisno                     => col_es%t_soisno                      & ! Input: [real (r8) (:,:) ] (K) soil temperature
+         t_soisno                     => col_es%t_soisno                      , & ! Input: [real (r8) (:,:) ] (K) soil temperature
+         zwt                          => soilhydrology_vars%zwt_col           & ! Input:  [real(r8) (:)   ]  water table depth (m)
 #endif
          )
-
 
       ! loop over patches to assess the total plant N demand and P demand
       do fp=1,num_soilp
@@ -763,10 +772,13 @@ contains
          f2 = croot_stem(ivt(p))
 
 #ifdef HUM_HOL
-         if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
+         if (ivt(p) /= nc3_arctic_grass) .and.  .not. carbon_only) then
+            ! Michaelis-Menten coefficients
             mm = sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c))
             mmp = sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))
 
+            ! When nutrients become more abundant, the trees grow more roots
+            ! , whereas the shrub grow less roots. 
             f1 = froot_leaf(ivt(p)) + AllocParamsInst%froot_leaf_slope(ivt(p)) * min(mm, mmp)
             f1 = max(f1, 0.1_r8)
          end if
@@ -1030,42 +1042,75 @@ contains
          ! dynamic nutrients limitation for SPRUCE vegetation but do not touch moss
          ! calculate the root absorption capacity here
 
+         ! According Brzostek et al. 2014 (DOI: 10.1002/2014JG002660) 
+         ! and Shao et al. 2023 (DOI: 10.1111/nph.18555), the pathways are
+         ! (1) passive: proportional to transpiration rate and N concentration
+         !              in the soil. But soil hydrology is still problematic in
+         !              ELM, resulting in inability to simulate flooding-induced
+         !              stomatal closure and inhibition of nutrient uptake. 
+         !              Therefore, disregard for now.
+         ! (2) active via root itself: proportional to fine root, Q10, and subject
+         !              to flooding inhibition via the respiration mechanism.
+         ! (3) active via fungi: proportional to availc(p) minus the part already
+         !              satisfied by retranslocation. Maybe less sensitive to flooding?
+         ! (4) biological N fixation: = 0.
+         !
+         ! Ericoid fungi is directly using organic C; it therefore should 
+         ! not be part of mineral nutrients competition. But ELM does not have 
+         ! mechanism for it. We assume relying more on fungi means higher
+         ! maintenance respiration because plants send cpool over to the fungi
+         ! and receive back NP. 
+
+         c = veg_pp%column(p)
+
          if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
 
-            ! The cpool-proportional side perhaps should not enter competition because
-            ! the ericoid fungi is directly using organic C? 
-            ! Instead it will meet a part of shrub demand at the cost of higher maintenance
-            ! respiration?
-            ! But simply adding more N will cause column NP balance to fail.
-            ! Instead, stimulate bio-activity, and increase uptake rate?
+            ! Assume the fine root biomass can obtain equal to the total
+            ! weight of the nutrient inside the plant during 1 year, 
+            ! under ideal conditions. (this is of course scaled by
+            ! the compet_pft_sminn & compet_pft_sminp factors)
 
-            ! The supply-drive part: proportional to fine root biomass
-            plant_nabsorb(p) = (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcn(ivt(p)) * AllocParamsInst%compet_pft_sminn(ivt(p))
-            plant_pabsorb(p) = (1._r8 + max(annavg_agnpp(p), 0.1_r8) / max(annavg_bgnpp(p), 0.1_r8)) * frootc(p) / 365._r8 / secspday / frootcp(ivt(p)) * AllocParamsInst%compet_pft_sminp(ivt(p))
+            ! froot = froot
+            ! leaf = froot / froot_leaf
+            ! stem = froot / froot_leaf * stem_leaf
+            ! croot = froot / froot_leaf * stem_leaf * croot_stem
+            maxroot_c = frootc(p)*(1._r8 + 1._r8/f1*(1._r8 + f3*(1._r8+f2))) & 
+                  / 365._r8 / secspday
+            maxroot_n = maxroot_c * n_allometry(p) / c_allometry(p)
+            maxroot_p = maxroot_c * p_allometry(p) / c_allometry(p)
 
-            ! further scale by Q10
-            c = veg_pp%column(p)
-            plant_nabsorb(p) = plant_nabsorb(p) * (AllocParamsInst%q10_uptake(ivt(p)) ** &
-               ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / & 
-                 AllocParamsInst%scale_uptake))
-            plant_pabsorb(p) = plant_pabsorb(p) * (AllocParamsInst%q10_uptake(ivt(p)) ** &
-               ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / & 
-                 AllocParamsInst%scale_uptake))
+            scale_q10 = AllocParamsInst%q10_uptake(ivt(p)) ** &
+               ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / AllocParamsInst%scale_uptake)
 
-            ! further scale by Michaelis-Menten
-            plant_nabsorb(p) = plant_nabsorb(p) * sminn(c) / &
-               (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c))
-            plant_pabsorb(p) = plant_pabsorb(p) * sminp(c) / &
-               (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))
+            if (ivt(p) /= 3) then
+               scale_wtd = 0.5_r8 + min(max(zwt(c)/0.3_r8, 0._r8), 1._r8) ! since top 30cm has roots
+            else
+               ! more flood tolerant
+               scale_wtd = 1._r8
+            end if
 
-            ! demand pull: assume to be mycorrhizae-related uptake since it is proportional to cpool
-            ! supply drive: remove the decline factor since it is simply roots affinity
-            plant_nabsorb(p) = plant_nabsorb(p) + &
-               plant_ndemand(p) * AllocParamsInst%cpool_pft_sminn(ivt(p)) * & 
-               exp(- AllocParamsInst%alpha_fpg * prev_fpg_patch(p))
-            plant_pabsorb(p) = plant_pabsorb(p) + &
-               plant_pdemand(p) * AllocParamsInst%cpool_pft_sminp(ivt(p)) * & 
-               exp(- AllocParamsInst%alpha_fpg_p * prev_fpg_p_patch(p))
+            active_n = maxroot_n * mm * scale_q10 * scale_wtd * & 
+                       AllocParamsInst%compet_pft_sminn(ivt(p))
+            active_p = maxroot_p * mmp * scale_q10 * scale_wtd * & 
+                       AllocParamsInst%compet_pft_sminp(ivt(p))
+
+            ! Assume the fungi uptake can obtain ~100% plant NP demand, but
+            ! is >100% when NP is poor, and <100% when NP is abundant. Hence,
+            ! plants are less likely to use fungi when NP is more abundant. 
+            ! (The 100% factor is subject to modification by
+            !  compet_pft_sminn & compet_pft_sminp)
+            !
+            ! Scale this by heterotrophic Q10 and still inhibit by water table
+            scale_q10 = ParamsShareInst%Q10_hr ** &
+               ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / AllocParamsInst%scale_uptake)
+            fungi_n = plant_ndemand(p) * (0.5_r8 + mm) * &
+               AllocParamsInst%cpool_pft_sminn(ivt(p))
+            fungi_p = plant_pdemand(p) * (0.5_r8 + mmp) * &
+               AllocParamsInst%cpool_pft_sminp(ivt(p))
+
+            ! Sum up the two parts, again scaled by nutrient abundance
+            plant_nabsorb(p) = fungi_n * (1 - mm) + active_n * mm
+            plant_pabsorb(p) = fungi_p * (1 - mmp) + active_p * mmp
          else
             plant_nabsorb(p) = plant_ndemand(p)
             plant_pabsorb(p) = plant_pdemand(p)
