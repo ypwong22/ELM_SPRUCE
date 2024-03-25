@@ -835,7 +835,7 @@ contains
                   if (j==1) t_scalar(c,:) = 0._r8
                   if (t_soisno(c,j) >= SHR_CONST_TKFRZ) then
                      t_scalar(c,1)=t_scalar(c,1) + &
-                          (Q10**((t_soisno(c,j)-(SHR_CONST_TKFRZ+25._r8))/10._r8))*fr(c,j)
+                          (Q10**((t_soisno(c,j)-(SHR_CONST_TKFRZ+10._r8))/10._r8))*fr(c,j)
                   else
                      t_scalar(c,1)=t_scalar(c,1) + &
                           (Q10**(-25._r8/10._r8))*(froz_q10**((t_soisno(c,j)-SHR_CONST_TKFRZ)/10._r8))*fr(c,j)

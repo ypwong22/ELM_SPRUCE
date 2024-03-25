@@ -772,7 +772,7 @@ contains
          f2 = croot_stem(ivt(p))
 
 #ifdef HUM_HOL
-         if (ivt(p) /= nc3_arctic_grass) .and.  .not. carbon_only) then
+         if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
             ! Michaelis-Menten coefficients
             mm = sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c))
             mmp = sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))
