@@ -44,7 +44,8 @@ module AllocationMod
   use elm_varctl      , only : carbonnitrogen_only  
   use elm_varctl      , only : carbonphosphorus_only
   use shr_infnan_mod  , only: nan => shr_infnan_nan, assignment(=)
-  use pftvarcon       , only: nc3_arctic_grass ! control for moss uptake in SPRUCE runs
+  use pftvarcon       , only: ndllf_evr_brl_tree, ndllf_dcd_brl_tree, nbrdlf_dcd_brl_shrub, nc3_arctic_grass
+
   !
   implicit none
   save
@@ -663,6 +664,7 @@ contains
       ! loop over patches to assess the total plant N demand and P demand
       do fp=1,num_soilp
          p = filter_soilp(fp)
+         c = veg_pp%column(p)
 
          ! get the time step total gross photosynthesis
          ! this is coming from the canopy fluxes code, and is the
@@ -1061,8 +1063,6 @@ contains
          ! maintenance respiration because plants send cpool over to the fungi
          ! and receive back NP. 
 
-         c = veg_pp%column(p)
-
          if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
 
             ! Assume the fine root biomass can obtain equal to the total
@@ -1082,13 +1082,15 @@ contains
             scale_q10 = AllocParamsInst%q10_uptake(ivt(p)) ** &
                ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / AllocParamsInst%scale_uptake)
 
-            if (ivt(p) /= 3) then
-               scale_wtd = 0.5_r8 + min(max(zwt(c)/0.3_r8, 0._r8), 1._r8) ! since top 30cm has roots
+            if (ivt(p) /= ndllf_dcd_brl_tree) then
+               scale_wtd = 0.5_r8 + 0.5_r8 * min(max(zwt(c)/0.3_r8, 0._r8), 1._r8) ! since top 30cm has roots
             else
                ! more flood tolerant
                scale_wtd = 1._r8
             end if
 
+            ! Fine root uptake capacity should be correlated with FLNR
+            !  Guo, L., Deng M., Yang S., Liu W., Wang X., Wang J., & Liu L. (2021). The coordination between leaf and fine root litter decomposition and the difference in their controlling factors. Global Ecology and Biogeography, 30, 2286–2296. https://doi.org/10.1111/geb.13384
             active_n = maxroot_n * mm * scale_q10 * scale_wtd * & 
                        AllocParamsInst%compet_pft_sminn(ivt(p))
             active_p = maxroot_p * mmp * scale_q10 * scale_wtd * & 
@@ -1099,18 +1101,23 @@ contains
             ! plants are less likely to use fungi when NP is more abundant. 
             ! (The 100% factor is subject to modification by
             !  compet_pft_sminn & compet_pft_sminp)
-            !
-            ! Scale this by heterotrophic Q10 and still inhibit by water table
-            scale_q10 = ParamsShareInst%Q10_hr ** &
-               ((t_soisno(c,3) - AllocParamsInst%tbase_uptake) / AllocParamsInst%scale_uptake)
-            fungi_n = plant_ndemand(p) * (0.5_r8 + mm) * &
-               AllocParamsInst%cpool_pft_sminn(ivt(p))
-            fungi_p = plant_pdemand(p) * (0.5_r8 + mmp) * &
-               AllocParamsInst%cpool_pft_sminp(ivt(p))
+            fungi_n = plant_ndemand(p) * AllocParamsInst%cpool_pft_sminn(ivt(p))
+            fungi_p = plant_pdemand(p) * AllocParamsInst%cpool_pft_sminp(ivt(p))
 
-            ! Sum up the two parts, again scaled by nutrient abundance
-            plant_nabsorb(p) = fungi_n * (1 - mm) + active_n * mm
-            plant_pabsorb(p) = fungi_p * (1 - mmp) + active_p * mmp
+            ! Since ericoid mycorrhizae is more specialized in organic nutrients
+            ! than ectomycorrhizae, the fungi uptake should decline when more mineral
+            ! nutrients become available.
+            ! Because fungi directly access organic nutrients, this term does not have M-M. 
+            ! ECM associated with the trees access both organic and inorganic nutrients,
+            ! so, do not use this.
+            if (ivt(p) == nbrdlf_dcd_brl_shrub) then
+               plant_nabsorb(p) = fungi_n * (1. - mm) + active_n * mm
+               plant_pabsorb(p) = fungi_p * (1. - mm) + active_p * mmp
+            else
+               ! Average the two parts
+               plant_nabsorb(p) = (fungi_n + active_n) * 0.5_r8
+               plant_pabsorb(p) = (fungi_p + active_p) * 0.5_r8
+            end if
          else
             plant_nabsorb(p) = plant_ndemand(p)
             plant_pabsorb(p) = plant_pdemand(p)

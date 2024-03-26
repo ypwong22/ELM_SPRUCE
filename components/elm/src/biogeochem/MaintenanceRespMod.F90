@@ -26,6 +26,8 @@ module MaintenanceRespMod
   use ColumnDataType      , only : col_es, col_ns, col_ps
   use VegetationType      , only : veg_pp
   use VegetationDataType  , only : veg_es, veg_cs, veg_cf, veg_ns
+  use elm_varctl          , only: iulog
+  use pftvarcon           , only: ndllf_evr_brl_tree, ndllf_dcd_brl_tree, nbrdlf_dcd_brl_shrub, nc3_arctic_grass
   !
   implicit none
   save
@@ -286,12 +288,15 @@ contains
             br_mr = br_mr_pft(ivt(p))
 
             ! increase by a factor due to transfer to fungi: 
-            ! the ratio is determined by Michaelis-Menten coefficients, see AllocationMod.F90
-            ! when all uptake is due to fungi, i.e. mm = mmp = 0, br_mr ticks up by 50%
-            mm = (1._r8 - sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c))) * &
-              AllocParamsInst%cpool_pft_sminn(ivt(p)) / AllocParamsInst%compet_pft_sminn(ivt(p))
-            mmp = (1._r8 - sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))) * &
-              AllocParamsInst%cpool_pft_sminp(ivt(p)) / AllocParamsInst%compet_pft_sminp(ivt(p))
+            ! the ratio is determined by relative uptake from fungi and mineral nutrients, 
+            ! see AllocationMod.F90
+            mm = AllocParamsInst%cpool_pft_sminn(ivt(p)) / AllocParamsInst%compet_pft_sminn(ivt(p))
+            mmp = AllocParamsInst%cpool_pft_sminp(ivt(p)) / AllocParamsInst%compet_pft_sminp(ivt(p))
+            if (ivt(p) == nbrdlf_dcd_brl_shrub) then
+               ! fungi uptake declines
+               mm = mm * (1._r8 - sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c)))
+               mmp = mmp * (1._r8 - sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c)))
+            end if
             br_mr = br_mr * (0.9_r8 + 0.5 * (mm + mmp) / 2._r8)
 #endif
             froot_mr(p) = froot_mr(p) + frootn(p)*br_mr*tcsoi(c,j)*rootfr(p,j)
