@@ -21,7 +21,7 @@ module PhenologyMod
   use CanopyStateType     , only : canopystate_type
   use CNStateType         , only : cnstate_type
   use CropType            , only : crop_type
-  use VegetationPropertiesType      , only : veg_vp
+  use VegetationPropertiesType , only : veg_vp
   use SoilStateType       , only : soilstate_type
   use atm2lndType         , only : atm2lnd_type
   use elm_varctl          , only : nu_com
