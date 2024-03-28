@@ -408,7 +408,7 @@ contains
        end if
        ! This is auto-trophic respiration, thus don't call this for FATES
        call MaintenanceResp(bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
-            canopystate_vars, soilstate_vars,  photosyns_vars )
+            canopystate_vars, soilstate_vars,  photosyns_vars, cnstate_vars )
        call t_stop_lnd(event)
 
     end if
@@ -480,7 +480,7 @@ contains
        call Allocation1_PlantNPDemand (bounds                             , &
                 num_soilc, filter_soilc, num_soilp, filter_soilp            , &
                 photosyns_vars, crop_vars, canopystate_vars, cnstate_vars   , &
-                soilhydrology_vars, dt, year )
+                soilhydrology_vars, soilstate_vars, dt, year )
        call t_stop_lnd(event)
     end if
 

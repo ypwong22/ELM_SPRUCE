@@ -16,6 +16,7 @@ module MaintenanceRespMod
   use SharedParamsMod     , only : ParamsShareInst
   use AllocationMod       , only : AllocParamsInst
   use VegetationPropertiesType , only : veg_vp
+  use CNStateType         , only : cnstate_type
   use SoilStateType       , only : soilstate_type
   use CanopyStateType     , only : canopystate_type
   use TemperatureType     , only : temperature_type
@@ -26,7 +27,7 @@ module MaintenanceRespMod
   use ColumnDataType      , only : col_es, col_ns, col_ps
   use VegetationType      , only : veg_pp
   use VegetationDataType  , only : veg_es, veg_cs, veg_cf, veg_ns
-  use elm_varctl          , only: iulog
+  use elm_varctl          , only: iulog, carbon_only, carbonnitrogen_only, carbonphosphorus_only
   use pftvarcon           , only: ndllf_evr_brl_tree, ndllf_dcd_brl_tree, nbrdlf_dcd_brl_shrub, nc3_arctic_grass
   !
   implicit none
@@ -110,7 +111,7 @@ contains
   !
   subroutine MaintenanceResp(bounds, &
        num_soilc, filter_soilc, num_soilp, filter_soilp, &
-       canopystate_vars, soilstate_vars, photosyns_vars)
+       canopystate_vars, soilstate_vars, photosyns_vars, cnstate_vars)
     !
     ! !DESCRIPTION:
     !
@@ -126,6 +127,7 @@ contains
     type(canopystate_type)   , intent(in)    :: canopystate_vars
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     type(photosyns_type)     , intent(in)    :: photosyns_vars
+    type(cnstate_type)       , intent(in)    :: cnstate_vars
     !
     ! !LOCAL VARIABLES:
     integer :: c,p,j ! indices
@@ -137,7 +139,7 @@ contains
     real(r8):: q10   ! temperature dependence
     real(r8):: tc    ! temperature correction, 2m air temp (unitless)
     real(r8):: tcsoi(bounds%begc:bounds%endc,nlevgrnd) ! temperature correction by soil layer (unitless)
-    real(r8):: mm, mmp ! used to allocate between fungi and active uptake
+    real(r8):: weight, weightp ! temporary hold for relationship between nutrient uptake and pathway and fine root maintenance respiration
     !-----------------------------------------------------------------------
 
     associate(                                                        &
@@ -176,8 +178,8 @@ contains
          grainn         =>    veg_ns%grainn       , & ! Output: [real(r8) (:)   ]  (kgN/m2) grain N
 
 #ifdef HUM_HOL
-         sminn          => col_ns%sminn           , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral N
-         sminp          => col_ps%sminp             & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral P
+         mm             => cnstate_vars%mm_patch  , & ! Input: [real (r8) (:)     ] patch level Michaelis-Menten coefficient on N limitation
+         mmp            => cnstate_vars%mmp_patch   & ! Input: [real (r8) (:)     ] patch level Michaelis-Menten coefficient on P limitation
 #endif
          )
 
@@ -290,14 +292,24 @@ contains
             ! increase by a factor due to transfer to fungi: 
             ! the ratio is determined by relative uptake from fungi and mineral nutrients, 
             ! see AllocationMod.F90
-            mm = AllocParamsInst%cpool_pft_sminn(ivt(p)) / AllocParamsInst%compet_pft_sminn(ivt(p))
-            mmp = AllocParamsInst%cpool_pft_sminp(ivt(p)) / AllocParamsInst%compet_pft_sminp(ivt(p))
-            if (ivt(p) == nbrdlf_dcd_brl_shrub) then
-               ! fungi uptake declines
-               mm = mm * (1._r8 - sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c)))
-               mmp = mmp * (1._r8 - sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c)))
+            if (.not. carbon_only) then
+               weight = AllocParamsInst%cpool_pft_sminn(ivt(p)) / & 
+                        AllocParamsInst%compet_pft_sminn(ivt(p))
+               weightp = AllocParamsInst%cpool_pft_sminp(ivt(p)) / & 
+                         AllocParamsInst%compet_pft_sminp(ivt(p))
+               if (ivt(p) == nbrdlf_dcd_brl_shrub) then
+                  ! fungi uptake declines
+                  weight = weight * (1._r8 - mm(p))
+                  weightp = weightp * (1._r8 - mmp(p))
+               end if
+               if (carbonnitrogen_only) then
+                  br_mr = br_mr * (0.9_r8 + 0.5 * weight / 2._r8)
+               else if (carbonphosphorus_only) then
+                  br_mr = br_mr * (0.9_r8 + 0.5 * weightp / 2._r8)
+               else
+                  br_mr = br_mr * (0.9_r8 + 0.5 * (weight + weightp) / 2._r8)
+               end if
             end if
-            br_mr = br_mr * (0.9_r8 + 0.5 * (mm + mmp) / 2._r8)
 #endif
             froot_mr(p) = froot_mr(p) + frootn(p)*br_mr*tcsoi(c,j)*rootfr(p,j)
          end do

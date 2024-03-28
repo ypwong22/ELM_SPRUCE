@@ -84,9 +84,6 @@ module AllocationMod
      real(r8), pointer :: cpool_pft_sminn(:)  => null() ! (unitless) the scaling factor on plant_ndemand(p) representing mycorrhizae's ability to amplify plant capability
      real(r8), pointer :: cpool_pft_sminp(:)  => null() ! (unitless) the scaling factor on plant_pdemand(p) representing mycorrhizae's ability to amplify plant capability
 
-     real(r8), pointer :: alpha_fpg           => null() ! (unitless) adjust the rate of decreasing dependence on mycorrhizae-driven uptake as soil N content increase
-     real(r8), pointer :: alpha_fpg_p         => null() ! (unitless) adjust the rate of decreasing dependence on mycorrhizae-driven uptake as soil P content increase
-
      real(r8), pointer :: q10_uptake(:)       => null() ! (unitless) Q10 base constant for temperature sensitivity of uptake
      real(r8), pointer :: tbase_uptake        => null() ! (K) base temperature for Q10 temperature sensitivity of uptake
      real(r8), pointer :: scale_uptake        => null() ! (unitless) scale factors for Q10 temperature sensitivity of uptake
@@ -236,8 +233,6 @@ contains
     allocate(AllocParamsInst%compet_pft_sminp(0:npft))
     allocate(AllocParamsInst%cpool_pft_sminn(0:npft))
     allocate(AllocParamsInst%cpool_pft_sminp(0:npft))
-    allocate(AllocParamsInst%alpha_fpg)
-    allocate(AllocParamsInst%alpha_fpg_p)
     allocate(AllocParamsInst%q10_uptake(0:npft))
     allocate(AllocParamsInst%tbase_uptake)
     allocate(AllocParamsInst%scale_uptake)
@@ -259,14 +254,6 @@ contains
 
     tString='cpool_pft_sminp'
     call ncd_io(varname=trim(tString),data=AllocParamsInst%cpool_pft_sminp, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-
-    tString='alpha_fpg'
-    call ncd_io(varname=trim(tString),data=AllocParamsInst%alpha_fpg, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-
-    tString='alpha_fpg_p'
-    call ncd_io(varname=trim(tString),data=AllocParamsInst%alpha_fpg_p, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
     tString='q10_uptake'
@@ -470,7 +457,8 @@ contains
   !-------------------------------------------------------------------------------------------------
 
   subroutine Allocation1_PlantNPDemand (bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
-       photosyns_vars, crop_vars, canopystate_vars, cnstate_vars, soilhydrology_vars, dt, yr)
+       photosyns_vars, crop_vars, canopystate_vars, cnstate_vars, soilhydrology_vars, & 
+       soilstate_vars, dt, yr)
     ! PHASE-1 of Allocation: loop over patches to assess the total plant N demand and P demand
     ! !USES:
     !$acc routine seq
@@ -495,6 +483,7 @@ contains
     type(canopystate_type)   , intent(in)    :: canopystate_vars
     type(cnstate_type)       , intent(inout) :: cnstate_vars
     type(soilhydrology_type) , intent(in)    :: soilhydrology_vars
+    type(soilstate_type)     , intent(in)    :: soilstate_vars
     real(r8), intent(in) :: dt
     integer, intent(in) :: yr
     !
@@ -524,9 +513,10 @@ contains
     ! local nutrient uptake pathways
     real(r8):: active_n, active_p, fungi_n, fungi_p
     real(r8):: maxroot_c, maxroot_n, maxroot_p
+    real(r8):: sminn_avg, sminp_avg !temporary hold for root fraction weighted nutrient concentration over the plant profile
     real(r8):: mm, mmp !temporary hold for Michaelis-Menten limitation values
     real(r8):: scale_q10 !temporary hold for Q10-scalar on uptake rate
-    real(r8):: scale_wtd ! temporary hold for water table inhibition on uptake rate
+    real(r8):: scale_wtd !temporary hold for water table inhibition on uptake rate
 
   !-----------------------------------------------------------------------
 
@@ -650,12 +640,17 @@ contains
          prev_fpg_patch               => cnstate_vars%prev_fpg_patch          , & ! Input: [real(r8) (:)     ] previous step's N limitation
          prev_fpg_p_patch             => cnstate_vars%prev_fpg_p_patch        , & ! Input: [real(r8) (:)     ] previous step's P limitation
 
+         mm                           => cnstate_vars%mm_patch                , & ! Input: [real (r8) (:)     ] patch level Michaelis-Menten coefficient on N limitation
+         mmp                          => cnstate_vars%mmp_patch               , & ! Input: [real (r8) (:)     ] patch level Michaelis-Menten coefficient on P limitation
+
          plant_nabsorb                => veg_nf%plant_nabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up N (gN/m2/s)
          plant_pabsorb                => veg_pf%plant_pabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up P
 
-         sminn                        => col_ns%sminn                         , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral N
-         sminp                        => col_ps%sminp                         , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral P
+         smin_no3_vr                  => col_ns%smin_no3_vr                   , & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral NH4 concentration
+         smin_nh4_vr                  => col_ns%smin_nh4_vr                   , & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral NO3 concentration
+         sminp_vr                     => col_ps%solutionp_vr                  , & ! Input: [real(r8) (:) ]  (gP/m2) soil soluble P concentration
 
+         rootfr                       => soilstate_vars%rootfr_patch          , & ! Input: [real(r8) (:) ] (1) fraction of plant roots in each soil layer
          t_soisno                     => col_es%t_soisno                      , & ! Input: [real (r8) (:,:) ] (K) soil temperature
          zwt                          => soilhydrology_vars%zwt_col           & ! Input:  [real(r8) (:)   ]  water table depth (m)
 #endif
@@ -776,12 +771,23 @@ contains
 #ifdef HUM_HOL
          if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
             ! Michaelis-Menten coefficients
-            mm = sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c))
-            mmp = sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))
+            sminn_avg = 0._r8
+            sminp_avg = 0._r8
+            do j = 1,col_pp%nlevbed(c)
+               sminn_avg = sminn_avg + ( &
+                  max(smin_nh4_vr(c,j), 0._r8) + & 
+                  max(smin_no3_vr(c,j), 0._r8) ) * rootfr(p,j)
+               sminp_avg = sminp_avg + sminp_vr(c,j) * rootfr(p,j)
+            end do
+
+            mm(p) = sminn_avg / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn_avg)
+            mmp(p) = sminp_avg / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp_avg)
+
+            write (iulog, *) c, ivt(p), mm(p), mmp(p), sminn_avg, sminp_avg
 
             ! When nutrients become more abundant, the trees grow more roots
             ! , whereas the shrub grow less roots. 
-            f1 = froot_leaf(ivt(p)) + AllocParamsInst%froot_leaf_slope(ivt(p)) * min(mm, mmp)
+            f1 = froot_leaf(ivt(p)) + AllocParamsInst%froot_leaf_slope(ivt(p)) * min(mm(p), mmp(p))
             f1 = max(f1, 0.1_r8)
          end if
 #endif
@@ -815,7 +821,6 @@ contains
          cpfr = frootcp(ivt(p))
          cplw = livewdcp(ivt(p))
          cpdw = deadwdcp(ivt(p))
-
 
          ! calculate f1 to f5 for prog crops following AgroIBIS subr phenocrop
 
@@ -1091,9 +1096,9 @@ contains
 
             ! Fine root uptake capacity should be correlated with FLNR
             !  Guo, L., Deng M., Yang S., Liu W., Wang X., Wang J., & Liu L. (2021). The coordination between leaf and fine root litter decomposition and the difference in their controlling factors. Global Ecology and Biogeography, 30, 2286–2296. https://doi.org/10.1111/geb.13384
-            active_n = maxroot_n * mm * scale_q10 * scale_wtd * & 
+            active_n = maxroot_n * mm(p) * scale_q10 * scale_wtd * & 
                        AllocParamsInst%compet_pft_sminn(ivt(p))
-            active_p = maxroot_p * mmp * scale_q10 * scale_wtd * & 
+            active_p = maxroot_p * mmp(p) * scale_q10 * scale_wtd * & 
                        AllocParamsInst%compet_pft_sminp(ivt(p))
 
             ! Assume the fungi uptake can obtain ~100% plant NP demand, but
@@ -1111,8 +1116,8 @@ contains
             ! ECM associated with the trees access both organic and inorganic nutrients,
             ! so, do not use this.
             if (ivt(p) == nbrdlf_dcd_brl_shrub) then
-               plant_nabsorb(p) = fungi_n * (1. - mm) + active_n * mm
-               plant_pabsorb(p) = fungi_p * (1. - mm) + active_p * mmp
+               plant_nabsorb(p) = fungi_n * (1. - mm(p)) + active_n * mm(p)
+               plant_pabsorb(p) = fungi_p * (1. - mmp(p)) + active_p * mmp(p)
             else
                ! Average the two parts
                plant_nabsorb(p) = (fungi_n + active_n) * 0.5_r8
@@ -2148,7 +2153,6 @@ contains
     real(r8):: cp_stoich_var=0.4    ! variability of CP ratio
     real(r8):: curmr, curmr_ratio   !xsmrpool temporary variables
     real(r8):: xsmr_ratio           ! ratio of mr comes from non-structue carobn hydrate pool
-    real(r8):: mm, mmp              ! temporary hold for Michaelis-Menten limitation values
     !-----------------------------------------------------------------------
 
     associate(                                                                                 &
@@ -2320,8 +2324,8 @@ contains
          plant_nabsorb                => veg_nf%plant_nabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up N (gN/m2/s)
          plant_pabsorb                => veg_pf%plant_pabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up P
 
-         sminn                        => col_ns%sminn                         , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral N
-         sminp                        => col_ps%sminp                         & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral P
+         mm                           => cnstate_vars%mm_patch                , & ! Input: [real (r8) (:)     ] patch level Michaelis-Menten coefficient on N limitation
+         mmp                          => cnstate_vars%mmp_patch                & ! Input: [real (r8) (:)     ] patch level Michaelis-Menten coefficient on P limitation
 #endif
       )
 
@@ -2410,10 +2414,8 @@ contains
 
 #ifdef HUM_HOL
              if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
-                mm = sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c))
-                mmp = sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c))
-
-                f1 = froot_leaf(ivt(p)) + AllocParamsInst%froot_leaf_slope(ivt(p)) * min(mm, mmp)
+                f1 = froot_leaf(ivt(p)) + min(mm(p), mmp(p)) * &
+                     AllocParamsInst%froot_leaf_slope(ivt(p))
                 f1 = max(f1, 0.1_r8)
              end if
 #endif

@@ -189,7 +189,7 @@ module CNEcosystemDynBetrMod
 
        end if
        call MaintenanceResp(bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
-            canopystate_vars, soilstate_vars, photosyns_vars )
+            canopystate_vars, soilstate_vars, photosyns_vars, cnstate_vars )
        call t_stopf('MaintenanceResp')
 
        ! for P competition purpose, calculate P fluxes that will potentially increase solution P pool

@@ -79,8 +79,10 @@ module CNStateType
 
      real(r8),  pointer :: fpg_patch                   (:)     ! patch-level fraction of potential gpp (no units)
      real(r8),  pointer :: fpg_p_patch                 (:)     ! patch-level fraction of potential gpp (no units)
-     real(r8),  pointer :: prev_fpg_patch              (:)      ! patch-level fraction of potential gpp (no units)
-     real(r8),  pointer :: prev_fpg_p_patch            (:)    ! patch-level fraction of potential gpp (no units)
+     real(r8),  pointer :: prev_fpg_patch              (:)     ! patch-level fraction of potential gpp (no units)
+     real(r8),  pointer :: prev_fpg_p_patch            (:)     ! patch-level fraction of potential gpp (no units)
+     real(r8),  pointer :: mm_patch                    (:)     ! patch-level Michaelis-Menten coefficient on N limitation (1)
+     real(r8),  pointer :: mmp_patch                   (:)     ! patch-level Michaelis-Menten coefficient on P limitation (1)
 
      real(r8) , pointer :: rf_decomp_cascade_col       (:,:,:) ! col respired fraction in decomposition step (frac)
      real(r8) , pointer :: pathfrac_decomp_cascade_col (:,:,:) ! col what fraction of C leaving a given pool passes through a given transition (frac) 
@@ -273,6 +275,9 @@ contains
     ! in the first step, the "previous" time step has no nutrients limitation
     allocate( this%prev_fpg_patch       (begp:endp))                   ; this%prev_fpg_patch       (:) = 1._r8
     allocate( this%prev_fpg_p_patch     (begp:endp))                   ; this%prev_fpg_p_patch    (:) = 1._r8
+
+    allocate(this%mm_patch              (begp:endp))                   ; this%mm_patch           (:)   = spval
+    allocate(this%mmp_patch             (begp:endp))                   ; this%mmp_patch           (:)   = spval
 
     allocate(this%rf_decomp_cascade_col(begc:endc,1:nlevdecomp_full,1:ndecomp_cascade_transitions)); 
     this%rf_decomp_cascade_col(:,:,:) = spval
@@ -511,6 +516,16 @@ contains
     call hist_addfld1d (fname='PREV_FPG_P_PATCH', units='proportion', &
          avgflag='A', long_name='previous time step pft-level fraction of potential gpp due to P limitation', &
          ptr_patch=this%prev_fpg_p_patch)
+
+    this%mm_patch(begp:endp) = spval
+    call hist_addfld1d (fname='MM_PATCH', units='proportion', &
+         avgflag='A', long_name='Patch level Michaelis-Menten coefficient of N limitation', &
+         ptr_patch=this%mm_patch)
+
+    this%mmp_patch(begp:endp) = spval
+    call hist_addfld1d (fname='MMP_PATCH', units='proportion', &
+         avgflag='A', long_name='Patch level Michaelis-Menten coefficient of P limitation', &
+         ptr_patch=this%mmp_patch)
 
     this%annsum_counter_col(begc:endc) = spval
     call hist_addfld1d (fname='ANNSUM_COUNTER', units='s', &
@@ -1059,6 +1074,8 @@ contains
           this%prev_fpg_patch     (c) = 1._r8
           this%fpg_p_patch        (c) = spval
           this%prev_fpg_p_patch   (c) = 1._r8
+          this%mm_patch           (c) = spval
+          this%mmp_patch          (c) = spval
 
           do j = 1,nlevdecomp_full
              this%fpi_vr_col(c,j) = spval
@@ -1445,6 +1462,16 @@ contains
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%prev_fpg_p_patch)
 
+    call restartvar(ncid=ncid, flag=flag, varname='mm_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%mm_patch)
+
+    call restartvar(ncid=ncid, flag=flag, varname='mmp_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%mmp_patch)
+
     call restartvar(ncid=ncid, flag=flag, varname='annsum_counter', xtype=ncd_double,  &
          dim1name='column', &
          long_name='', units='', &
@@ -1472,7 +1499,6 @@ contains
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
     if (crop_prog) then
-
 
        call restartvar(ncid=ncid, flag=flag,  varname='htmx', xtype=ncd_double,  &
             dim1name='pft', long_name='max height attained by a crop during year', units='m', &
