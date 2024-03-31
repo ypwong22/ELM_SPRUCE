@@ -480,7 +480,7 @@ contains
        call Allocation1_PlantNPDemand (bounds                             , &
                 num_soilc, filter_soilc, num_soilp, filter_soilp            , &
                 photosyns_vars, crop_vars, canopystate_vars, cnstate_vars   , &
-                soilhydrology_vars, dt, year )
+                soilhydrology_vars, soilstate_vars, dt, year )
        call t_stop_lnd(event)
     end if
 

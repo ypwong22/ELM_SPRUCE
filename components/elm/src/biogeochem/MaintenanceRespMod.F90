@@ -16,9 +16,9 @@ module MaintenanceRespMod
   use SharedParamsMod     , only : ParamsShareInst
   use AllocationMod       , only : AllocParamsInst
   use VegetationPropertiesType , only : veg_vp
+  use CNStateType         , only : cnstate_type
   use SoilStateType       , only : soilstate_type
   use CanopyStateType     , only : canopystate_type
-  use CNStateType         , only : cnstate_type
   use TemperatureType     , only : temperature_type
   use PhotosynthesisType  , only : photosyns_type
   use CNCarbonFluxType    , only : carbonflux_type
@@ -27,7 +27,7 @@ module MaintenanceRespMod
   use ColumnDataType      , only : col_es, col_ns, col_ps
   use VegetationType      , only : veg_pp
   use VegetationDataType  , only : veg_es, veg_cs, veg_cf, veg_ns
-  use elm_varctl          , only: iulog
+  use elm_varctl          , only: iulog, carbon_only, carbonnitrogen_only, carbonphosphorus_only
   use pftvarcon           , only: ndllf_evr_brl_tree, ndllf_dcd_brl_tree, nbrdlf_dcd_brl_shrub, nc3_arctic_grass
   !
   implicit none
@@ -116,7 +116,6 @@ contains
     ! !DESCRIPTION:
     !
     ! !USES:
-    use pftvarcon            , only: ndllf_dcd_brl_tree, nbrdlf_dcd_brl_shrub
     !
     ! !ARGUMENTS:
       !$acc routine seq
@@ -140,7 +139,7 @@ contains
     real(r8):: q10   ! temperature dependence
     real(r8):: tc    ! temperature correction, 2m air temp (unitless)
     real(r8):: tcsoi(bounds%begc:bounds%endc,nlevgrnd) ! temperature correction by soil layer (unitless)
-    real(r8):: mm, mmp ! used to allocate between fungi and active uptake
+    real(r8):: frac_fungi!temporary hold for fungi uptake fraction
     !-----------------------------------------------------------------------
 
     associate(                                                        &
@@ -184,8 +183,8 @@ contains
          grainn         =>    veg_ns%grainn       , & ! Output: [real(r8) (:)   ]  (kgN/m2) grain N
 
 #ifdef HUM_HOL
-         sminn          => col_ns%sminn           , & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral N
-         sminp          => col_ps%sminp             & ! Input: [real(r8) (:) ]  (gN/m2) soil mineral P
+         nscarcity      => cnstate_vars%nscarcity_patch        , & ! Input: [real (r8) (:)     ] scarcity of vegetation n-supply relative to c-supply
+         pscarcity      => cnstate_vars%pscarcity_patch         & ! Input: [real (r8) (:)     ] abundance of vegetation p-supply relative to c-supply
 #endif
          )
 
@@ -300,17 +299,28 @@ contains
             end if
             br_mr = br_mr_pft(ivt(p))
 
-            ! increase by a factor due to transfer to fungi: 
-            ! the ratio is determined by relative uptake from fungi and mineral nutrients, 
-            ! see AllocationMod.F90
-            mm = AllocParamsInst%cpool_pft_sminn(ivt(p)) / AllocParamsInst%compet_pft_sminn(ivt(p))
-            mmp = AllocParamsInst%cpool_pft_sminp(ivt(p)) / AllocParamsInst%compet_pft_sminp(ivt(p))
-            if (ivt(p) == nbrdlf_dcd_brl_shrub) then
-               ! fungi uptake declines
-               mm = mm * (1._r8 - sminn(c) / (AllocParamsInst%kmin_nuptake(ivt(p)) + sminn(c)))
-               mmp = mmp * (1._r8 - sminp(c) / (AllocParamsInst%kmin_puptake(ivt(p)) + sminp(c)))
+            ! increase by a factor due to transfer to fungi, similar to active_n/p & fungi_n/p
+            ! partition in AllocationMod.F90
+            if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
+
+               ! For shrub, NP more abundant -> less ErM -> lower fungi uptake
+               ! For trees, NP more abundant -> more ECM -> higher fungi uptake
+               if (carbonnitrogen_only) then
+                  frac_fungi = nscarcity(p)
+               else if (carbonphosphorus_only) then
+                  frac_fungi = pscarcity(p)
+               else
+                  frac_fungi = max(nscarcity(p), pscarcity(p))
+               end if
+               if (ivt(p)  == nbrdlf_dcd_brl_shrub) then
+                  frac_fungi = min(3 * frac_fungi, 0.95_r8)
+               else
+                  frac_fungi = 1 - min(3 * frac_fungi, 0.95_r8)
+               end if
+               ! Assume fungi will increase MR by 20% if 100% dependent on them
+               ! if no need to send to fungi at all, MR will be low by 20%
+               br_mr = br_mr * (0.8_r8 + 0.4_r8 * frac_fungi)
             end if
-            br_mr = br_mr * (0.9_r8 + 0.5 * (mm + mmp) / 2._r8)
 #endif
             froot_mr(p) = froot_mr(p) + frootn(p)*br_mr*tcsoi(c,j)*rootfr(p,j)
          end do

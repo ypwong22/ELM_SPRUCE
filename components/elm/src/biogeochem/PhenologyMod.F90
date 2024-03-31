@@ -90,7 +90,7 @@ module PhenologyMod
      real(r8), pointer :: hardiness_root(:)=> null() ! threshold temperature for fine root to die due to cold temperature (K)
      real(r8), pointer :: nmin_scale       => null() ! parameter controlling how nutrient limitation stimulates fine root growth
      real(r8), pointer :: wt_scale         => null() ! parameter controlling how water table inhibites fine root growth
-     real(r8), pointer :: mort_a           => null() ! parameter controlling fine root mortality rate
+     real(r8), pointer :: mort_a(:)        => null() ! parameter controlling fine root mortality rate
      real(r8), pointer :: mort_b           => null() ! parameter controlling fine root mortality rate
      real(r8), pointer :: mort_d           => null() ! parameter controlling fine root mortality rate
      real(r8), pointer :: mort_h2o(:)      => null() ! parameter controlling fine root mortality rate
@@ -219,7 +219,7 @@ contains
      allocate(PhenolParamsInst%hardiness_root(0:npft)    )
      allocate(PhenolParamsInst%nmin_scale                )
      allocate(PhenolParamsInst%wt_scale                  )
-     allocate(PhenolParamsInst%mort_a                    )
+     allocate(PhenolParamsInst%mort_a(0:npft)            )
      allocate(PhenolParamsInst%mort_b                    )
      allocate(PhenolParamsInst%mort_d                    )
      allocate(PhenolParamsInst%mort_h2o(0:npft)          )
@@ -1252,7 +1252,7 @@ contains
             psi_crit_h2osoi = max(smpmin(c), psi_crit_h2osoi) ! limit the range
 
             lfr_froot_td(p) = (t_soi_avg - PhenolParamsInst%mort_tsoi)**2 / 4._r8 * & 
-                               PhenolParamsInst%mort_a + 1._r8
+                               PhenolParamsInst%mort_a(ivt(p)) + 1._r8
 
             if (h2osoi_liq_avg .le. PhenolParamsInst%mort_h2o(ivt(p))) then
                lfr_froot_wd(p) = 1.5_r8 + atan(PhenolParamsInst%mort_d * SHR_CONST_PI * (abs(psi_max) - PhenolParamsInst%mort_psi(ivt(p)))) / SHR_CONST_PI
@@ -1426,8 +1426,8 @@ contains
                      ! assume the critial temperature of freezing death is -5 degrees
                      m0 = min((PhenolParamsInst%hardiness_root(ivt(p)) - & 
                                PhenolParamsInst%mort_tsoi)**2 / &
-                              4._r8 * PhenolParamsInst%mort_a + PhenolParamsInst%mort_b, & 
-                              400._r8 * PhenolParamsInst%mort_a + PhenolParamsInst%mort_b)
+                              4._r8 * PhenolParamsInst%mort_a(ivt(p)) + PhenolParamsInst%mort_b, & 
+                              400._r8 * PhenolParamsInst%mort_a(ivt(p)) + PhenolParamsInst%mort_b)
                      bglfr_froot(p) = max(1._r8 / (froot_long(ivt(p)) * dayspyr * secspday) &
                                           * (lfr_froot_td(p) - m0), 0._r8)
                      bgtr_root(p) = bglfr_froot(p)
@@ -2213,7 +2213,7 @@ contains
             psi_crit_h2osoi = max(smpmin(c), psi_crit_h2osoi) ! limit the range
 
             lfr_froot_td(p) = (t_soi_avg - PhenolParamsInst%mort_tsoi)**2 / 4._r8 * & 
-                               PhenolParamsInst%mort_a + 1._r8
+                               PhenolParamsInst%mort_a(ivt(p)) + 1._r8
 
             if (h2osoi_liq_avg .le. PhenolParamsInst%mort_h2o(ivt(p))) then
                lfr_froot_wd(p) = 1.5_r8 + atan(PhenolParamsInst%mort_d * SHR_CONST_PI * (abs(psi_max) - PhenolParamsInst%mort_psi(ivt(p)))) / SHR_CONST_PI
@@ -2395,8 +2395,8 @@ contains
                      ! assume the critial temperature of freezing death is -5 degrees
                      m0 = min((PhenolParamsInst%hardiness_root(ivt(p)) - &
                                PhenolParamsInst%mort_tsoi)**2 / 4._r8 * &
-                              PhenolParamsInst%mort_a + PhenolParamsInst%mort_b, &
-                              400._r8 * PhenolParamsInst%mort_a + PhenolParamsInst%mort_b)
+                              PhenolParamsInst%mort_a(ivt(p)) + PhenolParamsInst%mort_b, &
+                              400._r8 * PhenolParamsInst%mort_a(ivt(p)) + PhenolParamsInst%mort_b)
                      bglfr_froot(p) = max(1._r8 / (froot_long(ivt(p)) * dayspyr * secspday) &
                                           * (lfr_froot_td(p) - m0), 0._r8)
                      bgtr_root(p) = bglfr_froot(p)
