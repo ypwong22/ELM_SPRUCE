@@ -390,7 +390,7 @@ contains
                
                rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
                (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)   
-               
+
                !using osm_inhib to change root uptake -SLL
                if (salinity(1) .ge. sal_threshold(veg_pp%itype(p))) then
                   !osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
@@ -406,7 +406,7 @@ contains
                elseif(h2osfc(1) .gt. 1000._r8) then
                      floodf(veg_pp%itype(p))=0.0_r8
                elseif(h2osfc(1) .lt. 0._r8) then
-                     floodf(veg_pp%itype(p))=1.0_r8                       
+                     floodf(veg_pp%itype(p))=1.0_r8            
                endif
                rresis(p,j) = rresis(p,j)*floodf(veg_pp%itype(p))
 

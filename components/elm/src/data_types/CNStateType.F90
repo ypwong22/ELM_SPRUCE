@@ -81,8 +81,9 @@ module CNStateType
      real(r8),  pointer :: fpg_p_patch                 (:)     ! patch-level fraction of potential gpp (no units)
      real(r8),  pointer :: prev_fpg_patch              (:)      ! patch-level fraction of potential gpp (no units)
      real(r8),  pointer :: prev_fpg_p_patch            (:)    ! patch-level fraction of potential gpp (no units)
-     real(r8),  pointer :: nscarcity_patch             (:)     ! scarcity of vegetation n-supply relative to c-supply
-     real(r8),  pointer :: pscarcity_patch             (:)     ! scarcity of vegetation p-supply relative to c-supply
+     real(r8),  pointer :: plant_nfungi_patch          (:)     ! fungi's contribution to the plant_nabsorb term
+     real(r8),  pointer :: plant_pfungi_patch          (:)     ! fungi's contribution to the plant_pabsorb term
+     real(r8),  pointer :: zwt_root_patch              (:)     ! water table inhibition factor of fine root growth
 
      real(r8) , pointer :: rf_decomp_cascade_col       (:,:,:) ! col respired fraction in decomposition step (frac)
      real(r8) , pointer :: pathfrac_decomp_cascade_col (:,:,:) ! col what fraction of C leaving a given pool passes through a given transition (frac) 
@@ -292,8 +293,9 @@ contains
     allocate( this%prev_fpg_patch       (begp:endp))                   ; this%prev_fpg_patch       (:) = 1._r8
     allocate( this%prev_fpg_p_patch     (begp:endp))                   ; this%prev_fpg_p_patch    (:) = 1._r8
 
-    allocate(this%nscarcity_patch       (begp:endp))                   ; this%nscarcity_patch           (:)   = spval
-    allocate(this%pscarcity_patch       (begp:endp))                   ; this%pscarcity_patch           (:)   = spval
+    allocate(this%plant_nfungi_patch    (begp:endp))                   ; this%plant_nfungi_patch        (:)   = spval
+    allocate(this%plant_pfungi_patch    (begp:endp))                   ; this%plant_pfungi_patch        (:)   = spval
+    allocate(this%zwt_root_patch        (begp:endp))                   ; this%zwt_root_patch            (:)   = spval
 
     allocate(this%rf_decomp_cascade_col(begc:endc,1:nlevdecomp_full,1:ndecomp_cascade_transitions)); 
     this%rf_decomp_cascade_col(:,:,:) = spval
@@ -547,15 +549,20 @@ contains
          avgflag='A', long_name='previous time step pft-level fraction of potential gpp due to P limitation', &
          ptr_patch=this%prev_fpg_p_patch)
 
-    this%nscarcity_patch(begp:endp) = spval
-    call hist_addfld1d (fname='NSCARCITY_PATCH', units='proportion', &
-         avgflag='A', long_name='scarcity of vegetation n-supply relative to c-supply', &
-         ptr_patch=this%nscarcity_patch)
+    this%plant_nfungi_patch(begp:endp) = spval
+    call hist_addfld1d (fname='PLANT_NFUNGI_PATCH', units='proportion', &
+         avgflag='A', long_name='fungi contribution to the plant_nabsorb term', &
+         ptr_patch=this%plant_nfungi_patch)
 
-    this%pscarcity_patch(begp:endp) = spval
-    call hist_addfld1d (fname='PSCARCITY_PATCH', units='proportion', &
-         avgflag='A', long_name='scarcity of vegetation p-supply relative to c-supply', &
-         ptr_patch=this%pscarcity_patch)
+    this%plant_pfungi_patch(begp:endp) = spval
+    call hist_addfld1d (fname='PLANT_PFUNGI_PATCH', units='proportion', &
+         avgflag='A', long_name='fungi contribution to the plant_pabsorb term', &
+         ptr_patch=this%plant_pfungi_patch)
+
+    this%zwt_root_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ZWT_ROOT_PATCH', units='proportion', &
+         avgflag='A', long_name='water table inhibition of fine root growth', &
+         ptr_patch=this%zwt_root_patch)
 
     this%annsum_counter_col(begc:endc) = spval
     call hist_addfld1d (fname='ANNSUM_COUNTER', units='s', &
@@ -1173,8 +1180,9 @@ contains
           this%prev_fpg_patch     (c) = 1._r8
           this%fpg_p_patch        (c) = spval
           this%prev_fpg_p_patch   (c) = 1._r8
-          this%nscarcity_patch    (c) = 1._r8
-          this%pscarcity_patch    (c) = 1._r8
+          this%plant_nfungi_patch (c) = 1._r8
+          this%plant_pfungi_patch (c) = 1._r8
+          this%zwt_root_patch     (c) = 1._r8
 
           do j = 1,nlevdecomp_full
              this%fpi_vr_col(c,j) = spval
@@ -1659,15 +1667,20 @@ contains
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%prev_fpg_p_patch)
 
-    call restartvar(ncid=ncid, flag=flag, varname='nscarcity_patch', xtype=ncd_double,  &
+    call restartvar(ncid=ncid, flag=flag, varname='plant_nfungi_patch', xtype=ncd_double,  &
          dim1name='pft', &
          long_name='', units='', &
-         interpinic_flag='interp', readvar=readvar, data=this%nscarcity_patch)
+         interpinic_flag='interp', readvar=readvar, data=this%plant_nfungi_patch)
 
-    call restartvar(ncid=ncid, flag=flag, varname='pscarcity_patch', xtype=ncd_double,  &
+    call restartvar(ncid=ncid, flag=flag, varname='plant_pfungi_patch', xtype=ncd_double,  &
          dim1name='pft', &
          long_name='', units='', &
-         interpinic_flag='interp', readvar=readvar, data=this%pscarcity_patch)
+         interpinic_flag='interp', readvar=readvar, data=this%plant_pfungi_patch)
+
+    call restartvar(ncid=ncid, flag=flag, varname='zwt_root_patch', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%zwt_root_patch)
 
     call restartvar(ncid=ncid, flag=flag, varname='annsum_counter', xtype=ncd_double,  &
          dim1name='column', &

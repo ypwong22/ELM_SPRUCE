@@ -517,7 +517,9 @@ contains
     real(r8):: callo, nallo, pallo !temporary hold for allometry values
     real(r8):: scale_q10 !temporary hold for Q10-scalar on uptake rate
     real(r8):: scale_wtd !temporary hold for water table inhibition on uptake rate
+    real(r8):: scale_npool, scale_ppool !temporary hold for allometry limit on uptake rate
     real(r8):: frac_fungi!temporary hold for fungi uptake fraction
+    real(r8):: leaf_to_biomass!temporary variable to LEAFC_ALLOC:TOTVEGC_ABG
 
   !-----------------------------------------------------------------------
 
@@ -641,8 +643,7 @@ contains
          prev_fpg_patch               => cnstate_vars%prev_fpg_patch          , & ! Input: [real(r8) (:)     ] previous step's N limitation
          prev_fpg_p_patch             => cnstate_vars%prev_fpg_p_patch        , & ! Input: [real(r8) (:)     ] previous step's P limitation
 
-         nscarcity                    => cnstate_vars%nscarcity_patch        , & ! Input: [real (r8) (:)     ] scarcity of vegetation n-supply relative to c-supply
-         pscarcity                    => cnstate_vars%pscarcity_patch        , & ! Input: [real (r8) (:)     ] abundance of vegetation p-supply relative to c-supply
+         zwt_root                     => cnstate_vars%zwt_root_patch         , & ! Input: [real (r8) (:)     ] scarcity of vegetation n-supply relative to c-supply
 
          npool                        => veg_ns%npool                        , & ! Input:  [real(r8) (:)   ]  (gN/m2) plant N pool storage
          ppool                        => veg_ps%ppool                        , & ! Input:  [real(r8) (:)   ]  (gN/m2) plant P pool storage
@@ -652,6 +653,8 @@ contains
 
          plant_nabsorb                => veg_nf%plant_nabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up N (gN/m2/s)
          plant_pabsorb                => veg_pf%plant_pabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up P
+         plant_nfungi                 => cnstate_vars%plant_nfungi_patch      , & ! Input: [real (r8) (:)     ] fungi's contribution to the plant_nabsorb term
+         plant_pfungi                 => cnstate_vars%plant_pfungi_patch      , & ! Input: [real (r8) (:)     ] fungi's contribution to the plant_pabsorb term
 
          smin_no3_vr                  => col_ns%smin_no3_vr                   , & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral NH4 concentration
          smin_nh4_vr                  => col_ns%smin_nh4_vr                   , & ! Input: [real(r8) (:) ]  (gN/m3) soil mineral NO3 concentration
@@ -700,7 +703,7 @@ contains
 
          gpp(p) = psnsun_to_cpool(p) + psnshade_to_cpool(p)
 
-         ! carbon return of leaf C investment
+        ! carbon return of leaf C investment
          benefit_pgpp_pleafc(p) = max(gpp(p)  / max(leafc(p),1e-20_r8), 0.0_r8)
 
          ! get the time step total maintenance respiration
@@ -951,40 +954,28 @@ contains
 
 
 #ifdef HUM_HOL
-         if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
-            ! calculate temporary allometry, when root is not shifted
-            callo = (1._r8+g1)*(1._r8+f1+f3*(1._r8+f2))
-            nallo = 1._r8/cnl + f1/cnfr + (f3*f4*(1._r8+f2))/cnlw + &
-                 (f3*(1._r8-f4)*(1._r8+f2))/cndw
-            pallo = 1._r8/cpl + f1/cpfr + (f3*f4*(1._r8+f2))/cplw + &
-                 (f3*(1._r8-f4)*(1._r8+f2))/cpdw
+         !if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
+         ! relate the amount of roots growth to water table depth
+         !   if (ivt(p) == ndllf_evr_brl_tree) then
+         !      leaf_to_biomass = 0.035
+         !   else if (ivt(p) == ndllf_dcd_brl_tree) then
+         !      leaf_to_biomass = 0.016
+         !   else if (ivt(p) == nbrdlf_dcd_brl_shrub) then
+         !      leaf_to_biomass = 0.045
+         !   end if
+         !end if
 
-            ! compare the n/ppool size to allometry, if too much, reduce root allocation,
-            ! if too little, increase root allocation.
-            ! this function = 1 when npool = 0, = 0.135 when n/ppool is twice allometry
-
-            ! avoid infinity during cold start
-            if (npool(p) >= cpool(p)) then
-               nscarcity(p) = 0._r8
-            else
-               ! cap at npool = 0
-               nscarcity(p) = min(exp( - npool(p)/cpool(p) * callo / nallo ), 1._r8)
-            end if            
-            if (ppool(p) >= cpool(p)) then
-               pscarcity(p) = 0._r8
-            else
-               pscarcity(p) = min(exp( - ppool(p)/cpool(p) * callo / pallo ), 1._r8)
-            end if
-
-            ! baseline: coldest chamber: nscarcity = pscaricty == 1
-            ! as it gets warmer, nscarcity & pscaricty -> 0
-            ! positive slope: more roots @ warming/more nutrients
-            ! negative slope: less roots @ warming/more nutrients
-            ! (pick the limiting one between N and P by applying max)
-            f1 = froot_leaf(ivt(p)) * (1._r8 + & 
-               max(AllocParamsInst%froot_leaf_slope(ivt(p)) * & 
-                     (1._r8 - max(nscarcity(p), pscarcity(p))), -0.95_r8))
+         ! Murphy, M. T., & Moore, T. R. (2010). Linking root production to aboveground plant characteristics and water table in a temperate bog. Plant and Soil, 336(1), 219–231. https://doi.org/10.1007/s11104-010-0468-1
+         if ((ivt(p) == nbrdlf_dcd_brl_shrub) .and. (.not. carbon_only)) then
+            leaf_to_biomass = 0.045
+            zwt_root(p) = max(10**(1.4_r8 * zwt(c) - 1.33) / 1.37_r8 / leaf_to_biomass, 0.5)
+            !! The slope parameter only makes sense between 0.1 and 0.8
+            !zwt_root(p) = exp(zwt(c)/0.3_r8*AllocParamsInst%froot_leaf_slope(ivt(p)))
+            !f1 = froot_leaf(ivt(p)) * max(zwt_root(p), 0.1_r8)
+         else
+            zwt_root(p) = 1._r8
          end if
+         f1 = zwt_root(p) * froot_leaf(ivt(p))
 #endif
 
          ! based on available C, use constant allometric relationships to
@@ -1132,25 +1123,43 @@ contains
             ! Assume the fungi uptake can obtain a fraction of plant NP demand
             ! (the fraction = compet_pft_sminn / compet_pft_sminp)
             ! Because fungi directly access organic nutrients, this term does not have M-M. 
-            fungi_n = plant_ndemand(p) * AllocParamsInst%cpool_pft_sminn(ivt(p)) * scale_q10
-            fungi_p = plant_pdemand(p) * AllocParamsInst%cpool_pft_sminp(ivt(p)) * scale_q10
+            fungi_n = plant_ndemand(p) * AllocParamsInst%cpool_pft_sminn(ivt(p))
+            fungi_p = plant_pdemand(p) * AllocParamsInst%cpool_pft_sminp(ivt(p))
+
+            if (ivt(p) /= nbrdlf_dcd_brl_shrub) then
+               ! fungi becomes more helpful for the trees towards drier, more
+               ! mineralized conditions
+               fungi_n = fungi_n * scale_q10
+               fungi_p = fungi_p * scale_q10
+            end if
 
             ! For shrub, NP more abundant -> less ErM -> lower fungi uptake
             ! For trees, NP more abundant -> more ECM -> higher fungi uptake
-            if (carbonnitrogen_only) then
-               frac_fungi = nscarcity(p)
-            else if (carbonphosphorus_only) then
-               frac_fungi = pscarcity(p)
-            else
-               frac_fungi = max(nscarcity(p), pscarcity(p))
-            end if
-            if (ivt(p)  == nbrdlf_dcd_brl_shrub) then
-               frac_fungi = min(3 * frac_fungi, 0.95_r8)
-            else
-               frac_fungi = 1 - min(3 * frac_fungi, 0.95_r8)
-            end if
+            frac_fungi = 1._r8 - zwt_root(p) * froot_leaf (ivt(p)) / 1.5_r8
+            frac_fungi = min(max(frac_fungi, 0._r8), 1._r8)
+
             plant_nabsorb(p) = fungi_n * frac_fungi + active_n * (1 - frac_fungi)
             plant_pabsorb(p) = fungi_p * frac_fungi + active_p * (1 - frac_fungi)
+
+            ! save the fungi absorption for diagnostic purpose
+            plant_nfungi(p) = fungi_n * frac_fungi
+            plant_pfungi(p) = fungi_p * frac_fungi
+
+            ! When N/PPOOL is too big compared to vegetation requirement, scale down absorption
+            ! Begin scaling down at 60% totvegn, cap at 100% totvegn
+            if (npool(p) > 0.6*totvegn(p)) then
+               scale_npool = min(max(2.5_r8 - npool(p)/totvegn(p)*2.5_r8, 0._r8), 2.5_r8)
+            else
+               scale_npool = 1._r8
+            end if
+            if (ppool(p) > 0.6*totvegp(p)) then
+               scale_ppool = min(max(2.5_r8 - ppool(p)/totvegp(p)*2.5_r8, 0._r8), 2.5_r8)
+            else
+               scale_ppool = 1._r8
+            end if
+
+            plant_nabsorb(p) = scale_npool * plant_nabsorb(p)
+            plant_pabsorb(p) = scale_ppool * plant_pabsorb(p)
          else
             plant_nabsorb(p) = plant_ndemand(p)
             plant_pabsorb(p) = plant_pdemand(p)
@@ -2353,8 +2362,7 @@ contains
          plant_nabsorb                => veg_nf%plant_nabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up N (gN/m2/s)
          plant_pabsorb                => veg_pf%plant_pabsorb                 , & ! Input: [real(r8) (:)     ] fine root's ability to take up P
 
-         nscarcity                    => cnstate_vars%nscarcity_patch         , & ! Input: [real (r8) (:)     ] scarcity of vegetation n-supply relative to c-supply
-         pscarcity                    => cnstate_vars%pscarcity_patch          & ! Input: [real (r8) (:)     ] abundance of vegetation p-supply relative to c-supply
+         zwt_root                    => cnstate_vars%zwt_root_patch            & ! Input: [real (r8) (:)     ] scarcity of vegetation n-supply relative to c-supply
 #endif
       )
 
@@ -2377,20 +2385,14 @@ contains
 #ifdef HUM_HOL
                   if (.not. carbon_only) then
                      ! calculate the PFT-level limitation factor here
-                     if (plant_ndemand(p) < 1e-6_r8) then
+                     if (plant_ndemand(p) == 0._r8) then
                         fpg_patch(p) = 1._r8
-                     ! try oversupplying nitrogen? 
-                     !else if (plant_ndemand(p) < (plant_nabsorb(p) * fpg(c))) then
-                     !   fpg_patch(p) = 1._r8
                      else
                         fpg_patch(p) = (plant_nabsorb(p) * fpg(c)) / plant_ndemand(p)
                      end if
 
-                     if (plant_pdemand(p) < 1e-6_r8) then
+                     if (plant_pdemand(p) == 0._r8) then
                         fpg_p_patch(p) = 1._r8
-                     ! try oversupplying nitrogen? 
-                     !else if (plant_pdemand(p) < (plant_pabsorb(p) * fpg_p(c))) then
-                     !   fpg_p_patch(p) = 1._r8
                      else
                         fpg_p_patch(p) = (plant_pabsorb(p) * fpg_p(c)) / plant_pdemand(p)
                      end if
@@ -2442,15 +2444,11 @@ contains
              f2 = croot_stem(ivt(p))
 
 #ifdef HUM_HOL
+             !if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
+             !  f1 = froot_leaf(ivt(p)) * max(zwt_root(p), 0.1_r8)
+             !end if
              if ((ivt(p) /= nc3_arctic_grass) .and. (.not. carbon_only)) then
-               ! baseline: coldest chamber: nscarcity = pscaricty == 1
-               ! as it gets warmer, nscarcity & pscaricty -> 0
-               ! positive slope: more roots @ warming/more nutrients
-               ! negative slope: less roots @ warming/more nutrients
-               ! (pick the limiting one between N and P by applying max)
-               f1 = froot_leaf(ivt(p)) * (1._r8 + & 
-                  max(AllocParamsInst%froot_leaf_slope(ivt(p)) * & 
-                        (1._r8 - max(nscarcity(p), pscarcity(p))), -0.95_r8))
+                f1 = zwt_root(p) * froot_leaf(ivt(p))
              end if
 #endif
 

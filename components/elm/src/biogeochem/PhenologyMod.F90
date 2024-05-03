@@ -1002,7 +1002,7 @@ contains
 
             ! B. Sulman: Allow evergreen plants to transfer C/N/P from storage pools to growth, at a constant rate (for now)
             leafc_storage_to_xfer(p)  = bgtr(p) * leafc_storage(p)
-            gresp_storage_to_xfer(p)      = bgtr(p) * gresp_storage(p)
+            gresp_storage_to_xfer(p)  = bgtr(p) * gresp_storage(p)
             if (woody(ivt(p)) >= 1.0_r8) then
                 livestemc_storage_to_xfer(p)  = bgtr(p) * livestemc_storage(p)
                 deadstemc_storage_to_xfer(p)  = bgtr(p) * deadstemc_storage(p)
@@ -1097,7 +1097,8 @@ contains
      integer :: jan01_curr_year
      real(r8):: day_of_year
      real(r8):: dayspyr                ! Days per year
-     real(r8) :: dt
+     real(r8):: dt
+     real(r8):: nplimit
 
      associate ( &
         ivt                                  => veg_pp%itype                           , & ! Input:  [integer  (:) ]  pft vegetation type
@@ -1120,7 +1121,8 @@ contains
         smpmin                               => soilstate_vars%smpmin_col              , & ! Input:  [real(r8) (:)   ]  restriction for min of soil potential (mm)
         ! phenological parameters
 
-        downreg                              => cnstate_vars%downreg_patch             , & ! Output: [real(r8) (:)   ]  fractional reduction in GPP due to N (and/or P) limitation (DIM)
+        fpg_patch                            => cnstate_vars%fpg_patch                 , & ! Output: [real(r8) (:)   ]  N limitation factor on plant growth
+        fpg_p_patch                          => cnstate_vars%fpg_p_patch               , & ! Output: [real(r8) (:)   ]  P limitation factor on plant growth
 
         !! phenological phases
         onset_flag                           => cnstate_vars%onset_flag_patch          , & ! Input:  [real(r8)  (:)   ]  onset flag of aboveground part
@@ -1226,7 +1228,8 @@ contains
 
             ! scaling factors on the onset & compensatory growth rate
             ! function of nutrient and water table depth
-            onset_froot_fnmin(p) = (1._r8 + downreg(p) ** PhenolParamsInst%nmin_scale) ! downreg is the excess respiration fraction
+            nplimit = max(min(min(fpg_patch(p), fpg_p_patch(p)), 1._r8), 0._r8)
+            onset_froot_fnmin(p) = (1._r8 + (1._r8 - nplimit) * PhenolParamsInst%nmin_scale)
             if (h2osfc(c) .le. 0._r8) then
                onset_froot_fw(p) = 1._r8
             else
@@ -2069,6 +2072,7 @@ contains
     integer :: jan01_curr_year
     real(r8):: day_of_year
     real(r8):: dayspyr                ! Days per year
+    real(r8):: nplimit
   
     !-----------------------------------------------------------------------
   
@@ -2088,7 +2092,8 @@ contains
        watsat                                => soilstate_vars%watsat_col              , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)
        sucsat                                => soilstate_vars%sucsat_col              , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
        smpmin                                => soilstate_vars%smpmin_col              , & ! Input:  [real(r8) (:)   ]  restriction for min of soil potential (mm)
-       downreg                               => cnstate_vars%downreg_patch             , & ! Output: [real(r8) (:)   ]  fractional reduction in GPP due to N (and/or P) limitation (DIM)
+       fpg_patch                             => cnstate_vars%fpg_patch                 , & ! Output: [real(r8) (:)   ]  N limitation factor on plant growth
+       fpg_p_patch                           => cnstate_vars%fpg_p_patch               , & ! Output: [real(r8) (:)   ]  P limitation factor on plant growth
        h2osfc                                => col_ws%h2osfc                          , & ! Input:  [real(r8) (:)   ]  surface water (mm)
        annavg_t2m                            => cnstate_vars%annavg_t2m_patch          , & ! Output:  [real(r8) (:)   ]  annual average 2m air temperature (K)
 
@@ -2188,7 +2193,8 @@ contains
             ! -------------------------------------------------------------
             ! scaling factors on the onset & compensatory growth rate
             ! function of nutrient and water table depth
-            onset_froot_fnmin(p) = (1._r8 + downreg(p)**PhenolParamsInst%nmin_scale) ! downreg is the excess respiration fraction
+            nplimit = max(min(min(fpg_patch(p), fpg_p_patch(p)), 1._r8), 0._r8)
+            onset_froot_fnmin(p) = (1._r8 + (1._r8 - nplimit) * PhenolParamsInst%nmin_scale)
             if (h2osfc(c) .le. 0._r8) then
                onset_froot_fw(p) = 1._r8
             else
@@ -4334,7 +4340,6 @@ contains
                else
                   t2 = min(2.0_r8 / (onset_counter_root(p)) * onset_froot_fnmin(p) * onset_froot_fw(p), 1.0_r8/dt)
                end if
-
                frootc_xfer_to_frootc(p) = t2 * frootc_xfer(p)
                frootn_xfer_to_frootn(p) = t2 * frootn_xfer(p)
                frootp_xfer_to_frootp(p) = t2 * frootp_xfer(p)
@@ -4361,7 +4366,6 @@ contains
                   deadcrootp_xfer_to_deadcrootp(p) = deadcrootp_xfer(p) / dt
                end if
             end if
-
          end if
 
 #else
