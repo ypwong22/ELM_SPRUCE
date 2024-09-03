@@ -162,7 +162,10 @@ module VegetationPropertiesType
      real(r8), allocatable :: osm_inhib(:)           !Osmotic inhibition factor
      real(r8), allocatable :: sal_opt(:)             !Salinity at which optimal biomass occurs (ppt)
      real(r8), allocatable :: sal_tol(:)             !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
-     real(r8), allocatable :: floodf(:)              !Growth inhibition factor due to flooding/inundation (0-1)
+
+     real(r8), allocatable :: waterlevel_threshold(:)       !Threshold for water level effects (mm above soil surface)
+     real(r8), allocatable :: waterlevel_opt(:)             !Water level at which optimal biomass occurs (mm)
+     real(r8), allocatable :: waterlevel_tol(:)             !Water level tolerance; width parameter for Gaussian distribution (mm -1)
 
    contains
    procedure, public :: Init => veg_vp_init
@@ -201,7 +204,7 @@ contains
     use pftvarcon , only : fnr, act25, kcha, koha, cpha, vcmaxha, jmaxha, tpuha
     use pftvarcon , only : lmrha, vcmaxhd, jmaxhd, tpuhd, lmrse, qe, theta_cj
     use pftvarcon , only : bbbopt, mbbopt, nstor, br_xr, br_mr_pft, q10_mr_pft, tc_stress, lmrhd, crit_gdd1, crit_gdd2
-    use pftvarcon , only : sal_threshold, KM_salinity, osm_inhib, sal_opt, sal_tol, floodf
+    use pftvarcon , only : sal_threshold, KM_salinity, osm_inhib, sal_opt, sal_tol, waterlevel_threshold, waterlevel_opt, waterlevel_tol
     !
     !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
     use pftvarcon , only : nonvascular, nfixer
@@ -347,7 +350,10 @@ contains
     allocate( this%osm_inhib(0:numpft))            ; this%osm_inhib(:)           =spval
     allocate( this%sal_opt(0:numpft))              ; this%sal_opt(:)             =spval
     allocate( this%sal_tol(0:numpft))              ; this%sal_tol(:)             =spval 
-    allocate( this%floodf(0:numpft))               ; this%floodf(:)              =spval
+    allocate( this%waterlevel_threshold(0:numpft))        ; this%waterlevel_threshold(:)       =spval
+    allocate( this%waterlevel_opt(0:numpft))              ; this%waterlevel_opt(:)             =spval
+    allocate( this%waterlevel_tol(0:numpft))              ; this%waterlevel_tol(:)             =spval
+
     do m = 0,numpft
 
        if (m <= ntree) then
@@ -475,7 +481,9 @@ contains
         this%osm_inhib(m)      = osm_inhib(m)
         this%sal_opt(m)        = sal_opt(m)
         this%sal_tol(m)        = sal_tol(m)
-        this%floodf(m)         = floodf(m)
+        this%waterlevel_threshold(m)  = waterlevel_threshold(m)
+        this%waterlevel_opt(m)        = waterlevel_opt(m)
+        this%waterlevel_tol(m)        = waterlevel_tol(m)
 
         do j = 1 , nlevdecomp
            this%decompmicc_patch_vr(m,j) = decompmicc_patch_vr(j,m)

@@ -589,7 +589,8 @@ contains
               filterp = filterp,                 &
               canopystate_vars=canopystate_vars, &
               energyflux_vars=energyflux_vars,   &
-              soilstate_vars=soilstate_vars      &
+              soilstate_vars=soilstate_vars,     &
+              soilhydrology_vars=soilhydrology_vars &
               )
 
       end if !use_fates

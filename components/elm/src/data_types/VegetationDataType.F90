@@ -153,7 +153,6 @@ module VegetationDataType
     real(r8), pointer :: totvegc            (:) => null() ! (gC/m2) total vegetation carbon, excluding cpool
     real(r8), pointer :: totpftc            (:) => null() ! (gC/m2) total patch-level carbon, including cpool
     real(r8), pointer :: totvegc_abg        (:) => null() ! (gC/m2) total above vegetation carbon, excluding cpool
-    real(r8), pointer :: osm_inhib          (:) => null() ! osm_inhib
     real(r8), pointer :: begcb              (:) => null() ! patch carbon mass, beginning of time step (gC/m**2)
     real(r8), pointer :: endcb              (:) => null() ! patch carbon mass, end of time step (gC/m**2)
     real(r8), pointer :: errcb              (:) => null() ! patch carbon balance error for the timestep (gC/m**2)
@@ -388,6 +387,8 @@ module VegetationDataType
 
     real(r8), pointer :: qflx_over_supply_patch   (:)   => null()   ! over supplied irrigation
     integer , pointer :: n_irrig_steps_left (:)   => null() ! number of time steps for which we still need to irrigate today (if 0, ignore)
+    real(r8), pointer :: osm_inhib                (:)   => null()   ! osm_inhib
+    real(r8), pointer :: floodf                   (:)   => null()   ! floodf
 
   contains
     procedure, public :: Init    => veg_wf_init
@@ -1984,7 +1985,6 @@ module VegetationDataType
        allocate(this%grainc_xfer        (begp :endp))   ;  this%grainc_xfer        (:)   = spval
        allocate(this%woodc              (begp :endp))   ;  this%woodc              (:)   = spval
        allocate(this%totvegc_abg        (begp :endp))   ;  this%totvegc_abg        (:)   = spval
-       allocate(this%osm_inhib          (begp :endp))   ;  this%osm_inhib          (:)   = spval
     endif  !  not use_fates
 
     allocate(this%begcb              (begp :endp))   ;  this%begcb              (:) = spval
@@ -2156,11 +2156,6 @@ module VegetationDataType
        call hist_addfld1d (fname='TOTVEGC_ABG', units='gC/m^2', &
             avgflag='A', long_name='total aboveground vegetation carbon, excluding cpool', &
             ptr_patch=this%totvegc_abg)
-
-     !   this%osm_inhib(begc:endc) = spval
-     !   call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
-     !        avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
-     !        ptr_col=this%osm_inhib)
             
        ! end of c12 block
 
@@ -5470,6 +5465,8 @@ module VegetationDataType
     allocate(this%qflx_supply_patch        (begp:endp))              ; this%qflx_supply_patch        (:)   = spval
     allocate(this%qflx_over_supply_patch   (begp:endp))              ; this%qflx_over_supply_patch   (:)   = spval
     allocate(this%n_irrig_steps_left       (begp:endp))              ; this%n_irrig_steps_left       (:)   = 0
+    allocate(this%osm_inhib                (begp:endp))              ;         this%osm_inhib                (:) = spval
+    allocate(this%floodf                   (begp:endp))              ;         this%floodf                   (:) = spval
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of veg_wf
